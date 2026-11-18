@@ -1,0 +1,30 @@
+# Yukylo - Apache settings
+Options -Indexes
+DirectoryIndex index.php
+
+# Hide repository and tooling files
+<FilesMatch "^(\.git.*|README\.md|commit-plan\.md|composer\.(json|lock))$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+
+# Folders that are only used by PHP or phpMyAdmin, never opened in a browser
+<IfModule mod_alias.c>
+    RedirectMatch 403 /(sql|vendor|templates)/
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header unset X-Powered-By
+    <FilesMatch "\.(css|js|woff2?|svg)$">
+        Header set Cache-Control "public, max-age=604800"
+    </FilesMatch>
+</IfModule>
