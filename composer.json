@@ -1,0 +1,9 @@
+{
+    "name": "yukylo/event-diary",
+    "description": "Event diary: events attended, people met and jobs saved",
+    "type": "project",
+    "require": {
+        "php": ">=8.1",
+        "twig/twig": "^3.30"
+    }
+}

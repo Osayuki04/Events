@@ -1,0 +1,19 @@
+# Database files (schema + data) - kept on this computer only
+/sql/
+
+# Composer libraries (run "composer install" to get them back)
+/vendor/
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Test output
+/test-results/
+/.playwright-cli/
+*.log
+
+# Personal notes
+/commit-plan.md
