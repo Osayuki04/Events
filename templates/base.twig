@@ -1,0 +1,72 @@
+{# The layout every page uses. Pages fill in the "title" and "content" blocks.
+   Variables: page (which tab is active), flash (message after saving), token (form token). #}
+<!doctype html>
+<html lang="en-GB">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}{% endblock %} · Yukylo</title>
+
+    <!-- Tailwind CSS (the only styling on the site). The theme adds the one red colour and the font. -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.18"></script>
+    <style type="text/tailwindcss">
+        @theme {
+            --font-sans: "Outfit", system-ui, sans-serif;
+            --color-brand: #d42a1c;
+            --color-brand-dark: #b0200f;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+</head>
+<body class="bg-white font-sans text-zinc-900 antialiased">
+
+{# ---- Top navigation ---- #}
+{% set tabs = {index: 'Dashboard', events: 'Events', people: 'People', jobs: 'Jobs'} %}
+<header class="sticky top-0 z-30 border-b border-zinc-200 bg-white">
+    <div class="mx-auto flex max-w-[1600px] flex-wrap items-end gap-x-6 px-4 lg:px-6">
+        <a class="my-3 flex items-center gap-2.5 text-lg font-semibold" href="index.php">
+            <span class="grid size-9 place-items-center rounded-xl bg-brand text-white"><i class="bi bi-journal-bookmark-fill"></i></span>Yukylo
+        </a>
+
+        <button class="my-3 ml-auto text-2xl lg:hidden" type="button" data-menu-toggle aria-controls="main-nav" aria-expanded="false" aria-label="Menu">
+            <i class="bi bi-list"></i>
+        </button>
+
+        <div class="hidden w-full flex-col gap-3 pb-3 lg:flex lg:w-auto lg:flex-1 lg:flex-row lg:items-end lg:pb-0" id="main-nav">
+            <nav class="flex flex-col lg:mx-auto lg:flex-row">
+                {% for key, label in tabs %}
+                    {% if key == page %}
+                        <a class="border-brand px-1 py-3 font-semibold text-brand lg:-mb-px lg:border-b-2 lg:px-5" href="{{ key }}.php" aria-current="page">{{ label }}</a>
+                    {% else %}
+                        <a class="border-transparent px-1 py-3 font-medium text-zinc-500 hover:text-zinc-900 lg:-mb-px lg:border-b-2 lg:px-5" href="{{ key }}.php">{{ label }}</a>
+                    {% endif %}
+                {% endfor %}
+            </nav>
+            {% if page != 'index' %}
+                <a class="self-start rounded-full bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark lg:mb-3 lg:self-auto" href="event_form.php">+ Add event</a>
+            {% endif %}
+        </div>
+    </div>
+</header>
+
+<main class="mx-auto max-w-[1600px] px-4 pb-14 pt-8 lg:px-8">
+
+    {# ---- Message after saving ("Event saved."). app.js also puts Ajax messages here. ---- #}
+    <div data-flash-area>
+        {% if flash %}
+            <div class="mb-6 flex items-center gap-3 rounded-xl border border-zinc-200 px-4 py-3" role="status" data-message>
+                <i class="bi bi-check-square-fill text-brand"></i>
+                <span class="flex-1">{{ flash }}</span>
+                <button type="button" class="text-zinc-400 hover:text-zinc-900" data-dismiss aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+        {% endif %}
+    </div>
+
+    {% block content %}{% endblock %}
+</main>
+
+<script src="{{ asset('js/app.js') }}"></script>
+</body>
+</html>

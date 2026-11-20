@@ -1,0 +1,146 @@
+{# Small reusable pieces. Use them in a template with:
+     {% import 'macros.twig' as ui %}   then   {{ ui.stars(event.rating) }}  #}
+
+
+{# ---- A text box with its label and error message.
+     options: type, required, maxlength, placeholder, suggest (autocomplete field name), max, rows (makes a textarea), help ---- #}
+{% macro field(name, label, value, errors, options = {}) %}
+    {% set error = errors[name] ?? null %}
+    {% set classes = 'w-full rounded-xl border bg-white px-3.5 py-2.5 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 ' ~ (error ? 'border-brand' : 'border-zinc-200') %}
+    <div class="relative" {% if options.suggest ?? false %}data-suggest-wrap{% endif %}>
+        <label class="mb-1.5 block text-[13px] font-medium text-zinc-500" for="{{ name }}">{{ label }}</label>
+        {% if options.rows is defined %}
+            <textarea class="{{ classes }}" id="{{ name }}" name="{{ name }}" rows="{{ options.rows }}"
+                      {% if options.maxlength is defined %}maxlength="{{ options.maxlength }}"{% endif %}
+                      {% if options.placeholder is defined %}placeholder="{{ options.placeholder }}"{% endif %}
+                      {% if options.required ?? false %}required{% endif %}>{{ value }}</textarea>
+        {% else %}
+            <input class="{{ classes }}" id="{{ name }}" name="{{ name }}" type="{{ options.type ?? 'text' }}" value="{{ value }}"
+                   {% if options.maxlength is defined %}maxlength="{{ options.maxlength }}"{% endif %}
+                   {% if options.max is defined %}max="{{ options.max }}"{% endif %}
+                   {% if options.placeholder is defined %}placeholder="{{ options.placeholder }}"{% endif %}
+                   {% if options.suggest ?? false %}data-suggest="{{ options.suggest }}" autocomplete="off"{% endif %}
+                   {% if options.required ?? false %}required{% endif %}>
+        {% endif %}
+        <p class="mt-1 text-[13px] text-brand {{ error ? '' : 'hidden' }}" data-error-for="{{ name }}">{{ error }}</p>
+        {% if options.help is defined %}<p class="mt-1 text-[13px] text-zinc-500">{{ options.help }}</p>{% endif %}
+    </div>
+{% endmacro %}
+
+
+{# ---- A dropdown with its label and error message. options = {value: 'Label', ...} ---- #}
+{% macro select(name, label, choices, value, errors, empty_label = null) %}
+    {% set error = errors[name] ?? null %}
+    <div>
+        <label class="mb-1.5 block text-[13px] font-medium text-zinc-500" for="{{ name }}">{{ label }}</label>
+        <select class="w-full rounded-xl border bg-white px-3.5 py-2.5 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 {{ error ? 'border-brand' : 'border-zinc-200' }}" id="{{ name }}" name="{{ name }}">
+            {% if empty_label %}<option value="">{{ empty_label }}</option>{% endif %}
+            {% for key, text in choices %}
+                <option value="{{ key }}" {{ key ~ '' == value ~ '' ? 'selected' }}>{{ text }}</option>
+            {% endfor %}
+        </select>
+        <p class="mt-1 text-[13px] text-brand {{ error ? '' : 'hidden' }}" data-error-for="{{ name }}">{{ error }}</p>
+    </div>
+{% endmacro %}
+
+
+{# ---- Rating stars: filled red up to the rating, grey after ---- #}
+{% macro stars(rating, size = 'text-[13px]') %}
+    <span class="whitespace-nowrap text-brand {{ size }}" title="{{ rating }} out of 5">
+        {%- for i in 1..5 -%}<i class="bi bi-star-fill {{ i <= rating ? '' : 'text-zinc-200' }}"></i>{%- endfor -%}
+    </span>
+{% endmacro %}
+
+
+{# ---- Job status label: the further along, the stronger the red ---- #}
+{% macro status(status) %}
+    {% set classes = {
+        Saved: 'bg-zinc-100 text-zinc-500 border-zinc-100',
+        Applied: 'bg-white text-zinc-900 border-zinc-200',
+        Interview: 'bg-white text-brand border-brand',
+        Offer: 'bg-brand text-white border-brand',
+        Rejected: 'bg-zinc-100 text-zinc-500 border-zinc-100 line-through'
+    } %}
+    <span class="shrink-0 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-semibold {{ classes[status] }}">{{ status }}</span>
+{% endmacro %}
+
+
+{# ---- Follow up / Done label for a person ---- #}
+{% macro follow_badge(follow_up) %}
+    {% if follow_up %}
+        <span class="shrink-0 whitespace-nowrap rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-white">Follow up</span>
+    {% else %}
+        <span class="shrink-0 whitespace-nowrap rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-500"><i class="bi bi-check-lg"></i> Done</span>
+    {% endif %}
+{% endmacro %}
+
+
+{# ---- A person's contact links as round icon buttons (no text).
+     Hovering shows the email / number / link; screen readers hear it too (title + sr-only). ---- #}
+{% macro contact_links(person, center = false) %}
+    {% set button = 'grid size-10 place-items-center rounded-full border border-zinc-200 text-brand transition-colors hover:border-brand hover:bg-brand hover:text-white' %}
+    <div class="flex flex-wrap gap-2 {{ center ? 'justify-center' }}">
+        {% if person.email %}
+            <a class="{{ button }}" href="mailto:{{ person.email }}" title="{{ person.email }}"><i class="bi bi-envelope-fill"></i><span class="sr-only">Email {{ person.email }}</span></a>
+        {% endif %}
+        {% if person.phone %}
+            <a class="{{ button }}" href="tel:{{ person.phone|replace({' ': ''}) }}" title="{{ person.phone }}"><i class="bi bi-telephone-fill"></i><span class="sr-only">Call {{ person.phone }}</span></a>
+        {% endif %}
+        {% if person.linkedin %}
+            <a class="{{ button }}" href="{{ person.linkedin }}" target="_blank" rel="noopener" title="LinkedIn"><i class="bi bi-linkedin"></i><span class="sr-only">{{ person.name }} on LinkedIn</span></a>
+        {% endif %}
+        {% if person.other_social %}
+            <a class="{{ button }}" href="{{ person.other_social }}" target="_blank" rel="noopener" title="{{ person.other_social }}"><i class="bi bi-link-45deg text-lg"></i><span class="sr-only">{{ person.name }}'s website</span></a>
+        {% endif %}
+    </div>
+{% endmacro %}
+
+
+{# ---- Avatar picture from DiceBear, chosen by the person's id (no names are sent) ---- #}
+{% macro avatar(id, size = 12) %}
+    {% set sizes = {8: 'size-8 rounded-lg', 10: 'size-10 rounded-xl', 12: 'size-12 rounded-xl', 26: 'size-[104px] rounded-2xl'} %}
+    <img class="shrink-0 bg-zinc-100 {{ sizes[size] }}" width="{{ size * 4 }}" height="{{ size * 4 }}" alt="" loading="lazy"
+         src="https://api.dicebear.com/9.x/notionists/svg?seed=person-{{ id }}&backgroundColor=f4f4f5">
+{% endmacro %}
+
+
+{# ---- Red date block: big (104px, for cards) or small (48px, for lists) ---- #}
+{% macro date_block(date, big = false) %}
+    {% if big %}
+        <div class="flex size-[104px] shrink-0 flex-col items-center justify-center rounded-2xl bg-brand leading-none text-white" title="{{ date|date('l j F Y') }}">
+            <span class="text-[40px] font-semibold tabular-nums">{{ date|date('j') }}</span>
+            <span class="mt-1.5 text-xs font-medium uppercase tracking-widest">{{ date|date('M Y') }}</span>
+        </div>
+    {% else %}
+        <span class="flex size-12 shrink-0 flex-col items-center justify-center rounded-xl bg-brand leading-none text-white" title="{{ date|date('j F Y') }}">
+            <span class="text-lg font-semibold tabular-nums">{{ date|date('j') }}</span>
+            <span class="mt-0.5 text-[9px] font-medium uppercase tracking-widest">{{ date|date('M') }}</span>
+        </span>
+    {% endif %}
+{% endmacro %}
+
+
+{# ---- Stat card that filters a list (events, people, jobs). The selected one is red.
+     field_value = this card's value, current = the value currently filtered on ---- #}
+{% macro stat_card(href, field_value, current, label, total, note) %}
+    <a class="group flex flex-col rounded-2xl border border-zinc-200 bg-white p-5 transition-colors hover:border-brand aria-[current=true]:border-brand aria-[current=true]:bg-brand aria-[current=true]:text-white"
+       href="{{ href }}" data-status="{{ field_value }}" {% if field_value ~ '' == current ~ '' %}aria-current="true"{% endif %}>
+        <div class="flex items-start justify-between gap-3">
+            <span class="truncate font-medium">{{ label }}</span>
+            <span class="grid size-8 shrink-0 place-items-center rounded-full border border-zinc-300 text-sm group-hover:border-brand group-hover:text-brand group-aria-[current=true]:border-white group-aria-[current=true]:bg-white group-aria-[current=true]:text-brand"><i class="bi bi-arrow-up-right"></i></span>
+        </div>
+        <span class="mt-5 text-4xl font-semibold leading-none tracking-tight tabular-nums" data-stat-value="{{ field_value }}">{{ total }}</span>
+        <span class="mt-2 text-[13px] text-zinc-500 group-aria-[current=true]:text-white/80">{{ note }}</span>
+    </a>
+{% endmacro %}
+
+
+{# ---- Search bar used on Events, People and Jobs. suggest = which autocomplete list to use ---- #}
+{% macro search_box(q, placeholder, suggest) %}
+    <div class="relative flex-1" data-suggest-wrap>
+        <i class="bi bi-search pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400"></i>
+        <input class="w-full rounded-xl border border-zinc-200 bg-white py-2.5 pl-10 pr-3.5 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
+               type="search" name="q" value="{{ q }}" placeholder="{{ placeholder }}" maxlength="80" aria-label="{{ placeholder }}"
+               data-suggest="{{ suggest }}" autocomplete="off">
+    </div>
+{% endmacro %}
