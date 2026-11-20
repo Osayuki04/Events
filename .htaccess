@@ -13,18 +13,16 @@ DirectoryIndex index.php
     </IfModule>
 </FilesMatch>
 
-
-# Folders that are only used by PHP or phpMyAdmin, never opened in a browser
+# Folders that are only used by PHP, phpMyAdmin or the command line, never opened in a browser
 <IfModule mod_alias.c>
-    RedirectMatch 403 /(sql|vendor|templates)/
+    RedirectMatch 403 /(sql|vendor|templates|tests)/
 </IfModule>
 
+# The security headers for pages are sent by PHP (top of db.php). These cover the static files.
 <IfModule mod_headers.c>
-    Header always set X-Content-Type-Options "nosniff"
-    Header always set X-Frame-Options "DENY"
-    Header always set Referrer-Policy "strict-origin-when-cross-origin"
     Header unset X-Powered-By
     <FilesMatch "\.(css|js|woff2?|svg)$">
+        Header set X-Content-Type-Options "nosniff"
         Header set Cache-Control "public, max-age=604800"
     </FilesMatch>
 </IfModule>

@@ -1,9 +1,37 @@
 <?php
 // Shared setup. Every page starts with include("db.php");
+//   0. Security headers + hide PHP errors from visitors
 //   1. MySQL connection ($mysqli)
 //   2. Session + form token (CSRF protection)
 //   3. Twig, the template engine ($twig) - all HTML lives in the templates/ folder
-//   4. Small helpers every page uses (render a page, answer Ajax requests)
+//   4. Small helpers every page uses (clean input, render a page, answer Ajax requests)
+
+// ---------------------------------------------------------------- 0. Security
+
+// Never show PHP errors to visitors (they reveal file paths and code). They go to the error log instead.
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+
+// Security headers, sent with every page
+if (!headers_sent()) {
+    header_remove('X-Powered-By');
+    // Content-Security-Policy: the browser only runs scripts, styles, fonts and images from the places
+    // listed here, so a script injected into the page (XSS) is blocked even if one ever got through.
+    header("Content-Security-Policy: default-src 'self'; "
+        . "script-src 'self' https://cdn.jsdelivr.net; "
+        . "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+        . "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
+        . "img-src 'self' data: https://api.dicebear.com; "
+        . "connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'");
+    header('X-Content-Type-Options: nosniff');                      // don't guess file types
+    header('X-Frame-Options: DENY');                                 // can't be put inside another site (clickjacking)
+    header('Referrer-Policy: strict-origin-when-cross-origin');      // don't leak full URLs to other sites
+    header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+    header('Cross-Origin-Opener-Policy: same-origin');
+    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+        header('Strict-Transport-Security: max-age=31536000');       // HTTPS only (on servers that have it)
+    }
+}
 
 // ---------------------------------------------------------------- 1. MySQL
 
@@ -55,6 +83,21 @@ $twig->addFunction(new \Twig\TwigFunction('asset', function (string $path): stri
 
 // ---------------------------------------------------------------- 4. Helpers
 
+// Tidy one text value from a form or the address bar (input filtering):
+//   - anything that isn't plain text (e.g. a list sent as name[]=x) becomes ''
+//   - HTML tags are removed, so <script> etc. is never even stored (HTML injection)
+//   - invisible control characters are removed, spaces trimmed, and the length is limited
+// Output is escaped as well (Twig autoescape), so this is a second layer of protection.
+function clean_text($value, int $max_length): string
+{
+    if (!is_string($value)) {
+        return '';
+    }
+    $value = strip_tags($value);
+    $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $value) ?? '';
+    return mb_substr(trim($value), 0, $max_length);
+}
+
 // Show a page: render a template, adding the "Event saved" style message if there is one
 function render(string $template, array $data = []): void
 {
@@ -81,7 +124,8 @@ function send_json(array $data): never
 // Stop if a POST form didn't come from one of our pages (CSRF protection)
 function check_token(): void
 {
-    if (($_POST['token'] ?? '') !== $_SESSION['token']) {
+    $sent = $_POST['token'] ?? '';
+    if (!is_string($sent) || !hash_equals($_SESSION['token'], $sent)) {
         if (is_ajax()) {
             send_json(['ok' => false, 'error' => 'Your session expired. Refresh the page and try again.']);
         }

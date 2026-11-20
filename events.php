@@ -8,14 +8,14 @@ $categories = mysqli_fetch_all(mysqli_query($mysqli, "SELECT * FROM categories O
 $cities = mysqli_fetch_all(mysqli_query($mysqli, "SELECT DISTINCT city FROM events WHERE city != '' ORDER BY city"), MYSQLI_ASSOC);
 
 // ---- Read the search form (every value is checked before it is used) ----
-$q = substr(trim($_GET['q'] ?? ''), 0, 80);
+$q = clean_text($_GET['q'] ?? '', 80);
 
 $category = (int) ($_GET['category'] ?? 0);
 if (!in_array($category, array_column($categories, 'id'))) {
     $category = 0;
 }
 
-$city = $_GET['city'] ?? '';
+$city = clean_text($_GET['city'] ?? '', 60);
 if (!in_array($city, array_column($cities, 'city'))) {
     $city = '';
 }
@@ -25,12 +25,12 @@ if ($min_rating < 1 || $min_rating > 5) {
     $min_rating = 0;
 }
 
-$from = $_GET['from'] ?? '';
+$from = clean_text($_GET['from'] ?? '', 10);
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) {
     $from = '';
 }
 
-$to = $_GET['to'] ?? '';
+$to = clean_text($_GET['to'] ?? '', 10);
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
     $to = '';
 }

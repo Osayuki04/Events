@@ -28,14 +28,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($id == 0 || $event)) {
 
     // Read and tidy every field
     $form = [
-        'title'       => substr(trim($_POST['title'] ?? ''), 0, 120),
+        'title'       => clean_text($_POST['title'] ?? '', 120),
         'category_id' => (int) ($_POST['category_id'] ?? 0),
-        'event_date'  => $_POST['event_date'] ?? '',
-        'venue'       => substr(trim($_POST['venue'] ?? ''), 0, 120),
-        'city'        => substr(trim($_POST['city'] ?? ''), 0, 60),
-        'seat'        => substr(trim($_POST['seat'] ?? ''), 0, 80),
+        'event_date'  => clean_text($_POST['event_date'] ?? '', 10),
+        'venue'       => clean_text($_POST['venue'] ?? '', 120),
+        'city'        => clean_text($_POST['city'] ?? '', 60),
+        'seat'        => clean_text($_POST['seat'] ?? '', 80),
         'rating'      => (int) ($_POST['rating'] ?? 0),
-        'summary'     => substr(trim($_POST['summary'] ?? ''), 0, 5000),
+        'summary'     => clean_text($_POST['summary'] ?? '', 5000),
     ];
 
     // Check them
