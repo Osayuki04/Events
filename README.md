@@ -26,6 +26,7 @@ Server-side logic and client-side markup are kept apart:
 | `job_form.php` + `templates/job_form.twig` | Add / edit / remove a job |
 | `templates/_event_cards.twig`, `_people_cards.twig`, `_job_cards.twig` | The result cards, used by the full pages **and** by the Ajax live search |
 | `suggest.php` | Ajax endpoint for autocomplete and form filling (JSON) |
+| `tests/security_test.php` | Security tests: run from the command line, prints PASS / FAIL for 307 checks |
 | `assets/js/app.js` | All JavaScript: menu, "Are you sure?" box, live search, Ajax forms, autocomplete |
 | `vendor/` | Twig, installed with Composer (`composer.json`) |
 | `sql/schema.sql` | The whole database: creates every table and inserts all the data (kept out of git) |
@@ -72,9 +73,12 @@ Without JavaScript every form and search still works as a normal page.
 | **Update** | Edit forms above, "Mark as followed up" on `people.php`, status dropdown on `jobs.php` |
 | **Delete** | `event_delete.php`, Remove button on `person_form.php` and `job_form.php` |
 | **Multi-criteria search** | `events.php`: keyword + type + city + minimum rating + date range + sort, combined with AND |
-| **Input filtering** | Top of each page: `trim`, length limits, `(int)`, `in_array` against allowed values, `filter_var` for email and links, regex for dates and phone numbers |
-| **XSS** | Twig escapes every `{{ value }}` automatically (`autoescape`); app.js inserts text with `textContent` |
+| **Input filtering** | Every value goes through `clean_text()` in `db.php` (removes HTML tags and control characters, refuses lists, limits length), then `(int)`, `in_array` against allowed values, `filter_var` for email and links, regex for dates and phone numbers |
+| **XSS / HTML injection** | Tags are removed from input before saving (`clean_text`), Twig escapes every `{{ value }}` when shown (`autoescape`), app.js inserts text with `textContent`, and the Content-Security-Policy header blocks any script that isn't from this site or jsDelivr |
 | **SQL injection** | mysqli prepared statements (`?` placeholders) for every query that uses input, including `suggest.php` |
-| **Other security** | Form token on every POST form (CSRF); session cookie is HttpOnly + SameSite; links must start with http(s):// so `javascript:` links can't be saved |
+| **Other security** | Form token on every POST form, checked with `hash_equals` (CSRF); session cookie is HttpOnly + SameSite; links must start with http(s):// so `javascript:` links can't be saved; PHP errors are never shown to visitors |
+| **Security headers** | Sent by `db.php` on every page: Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, Cross-Origin-Opener-Policy (and HSTS on HTTPS) |
+| **Security tests** | `tests/security_test.php` attacks every form, search and filter with XSS and SQL injection payloads and checks headers, CSRF, broken input and private files (307 checks). Run: `C:
+mpp\php\php.exe tests\security_test.php` |
 | **Ajax** | See the Ajax table above |
 | **Template engine** | Twig: `templates/` holds all markup, the `.php` files hold only logic |
