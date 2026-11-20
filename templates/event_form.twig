@@ -1,0 +1,74 @@
+{# Add or edit an event. Variables: id, event, not_found, form, errors, categories, today #}
+{% extends 'base.twig' %}
+{% import 'macros.twig' as ui %}
+
+{% block title %}{{ event ? 'Edit event' : 'Add event' }}{% endblock %}
+
+{% block content %}
+    <a class="mb-3.5 inline-flex items-center gap-1 text-sm font-medium text-brand" href="{{ event ? 'event.php?id=' ~ id : 'events.php' }}">
+        <i class="bi bi-caret-left-fill"></i>{{ event ? 'Back to event' : 'All events' }}
+    </a>
+
+    {% if not_found %}
+        <div class="rounded-xl border border-zinc-200 px-4 py-3">That event doesn't exist. It may have been deleted.</div>
+    {% else %}
+
+    <div class="mb-8">
+        <h1 class="text-4xl font-semibold tracking-tight">{{ event ? event.title : 'Add an event you attended' }}</h1>
+        <p class="mt-2 text-zinc-500">{{ event ? 'Change anything below and save.' : "Start typing the name — if you've been before, the venue and city fill in for you." }}</p>
+    </div>
+
+    {# data-ajax: sent in the background by app.js; errors appear under the fields without reloading #}
+    <form method="post" action="event_form.php{{ event ? '?id=' ~ id }}" class="rounded-2xl border border-zinc-200 p-5" novalidate data-ajax>
+        <input type="hidden" name="token" value="{{ token }}">
+
+        <div class="grid gap-8 lg:grid-cols-[7fr_5fr]">
+            <div class="grid content-start gap-4">
+                <h2 class="font-semibold">The event</h2>
+                {{ ui.field('title', 'Event name', form.title, errors, {required: true, maxlength: 120, suggest: 'event_title'}) }}
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    {{ ui.select('category_id', 'Type', categories, form.category_id, errors, 'Choose…') }}
+                    {{ ui.field('event_date', 'Date attended', form.event_date, errors, {type: 'date', max: today, required: true}) }}
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-[7fr_5fr]">
+                    {{ ui.field('venue', 'Venue', form.venue, errors, {maxlength: 120, placeholder: 'e.g. ICC, Hall 3', suggest: 'venue'}) }}
+                    {{ ui.field('city', 'City', form.city, errors, {maxlength: 60, suggest: 'city'}) }}
+                </div>
+
+                {{ ui.field('summary', 'Summary', form.summary, errors, {rows: 7, maxlength: 5000, required: true, placeholder: 'What happened, what you learned, best talks…'}) }}
+            </div>
+
+            <div class="grid content-start gap-4">
+                <h2 class="font-semibold">Your visit</h2>
+                {{ ui.field('seat', 'Where you sat', form.seat, errors, {maxlength: 80, placeholder: 'e.g. Row F, Seat 14', help: 'Leave blank if it was standing or unseated.'}) }}
+
+                <fieldset>
+                    <legend class="mb-1.5 block text-[13px] font-medium text-zinc-500">Your rating</legend>
+                    {# Stars are radio buttons, listed 5 to 1 and shown in reverse,
+                       so a checked star (peer-checked) colours itself and every star to its left #}
+                    <div class="inline-flex flex-row-reverse gap-1 rounded has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-brand [&>label:hover]:text-brand [&>label:hover~label]:text-brand">
+                        {% for i in 5..1 %}
+                            <input class="peer sr-only" type="radio" id="rating{{ i }}" name="rating" value="{{ i }}" {{ form.rating == i ? 'checked' }}>
+                            <label class="cursor-pointer text-[28px] leading-none text-zinc-200 peer-checked:text-brand" for="rating{{ i }}" title="{{ i }} out of 5">
+                                <i class="bi bi-star-fill"></i><span class="sr-only">{{ i }} stars</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                    <label class="mt-2 flex items-center gap-2 text-[13px]">
+                        <input class="size-4 accent-brand" type="radio" name="rating" value="0" {{ not form.rating ? 'checked' }}>
+                        Not rated
+                    </label>
+                </fieldset>
+            </div>
+        </div>
+
+        <div class="mt-6 flex gap-2 border-t border-zinc-200 pt-5">
+            <button class="rounded-xl bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark" type="submit">{{ event ? 'Save changes' : 'Add to diary' }}</button>
+            <a class="rounded-xl border border-brand px-4 py-2.5 font-medium text-brand hover:bg-brand hover:text-white" href="{{ event ? 'event.php?id=' ~ id : 'events.php' }}">Cancel</a>
+        </div>
+    </form>
+
+    {% endif %}
+{% endblock %}

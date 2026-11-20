@@ -1,0 +1,44 @@
+{# Events list. Variables: events, label, categories, cities, all_events, type_stats, search #}
+{% extends 'base.twig' %}
+{% import 'macros.twig' as ui %}
+
+{% block title %}Events{% endblock %}
+
+{% block content %}
+    <div class="mb-8">
+        <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">Events</h1>
+        <p class="mt-2 text-zinc-500">Every event you've been to, where you sat and what you thought of it.</p>
+    </div>
+
+    {# Stat cards by type. Clicking one sets the "Type" filter and searches again (Ajax, see app.js).
+       Without JavaScript they are normal links. The selected card turns red. #}
+    <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6" data-status-filter data-field="category">
+        {{ ui.stat_card('events.php', '', search.category, 'All events', all_events, 'everything in your diary') }}
+        {% for type in type_stats %}
+            {{ ui.stat_card('events.php?category=' ~ type.id, type.id, search.category, type.name, type.total, 'latest ' ~ type.latest|date('j M')) }}
+        {% endfor %}
+    </div>
+
+    {# Search: results update as you type, with suggestions (Ajax, see app.js). Every filter combines with AND. #}
+    <form method="get" action="events.php" class="mb-6 rounded-2xl border border-zinc-200 p-5" data-live-search role="search">
+        <div class="flex gap-3">
+            {{ ui.search_box(search.q, 'Search by title, venue, city or notes', 'events') }}
+            <button class="rounded-xl bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark" type="submit">Search</button>
+            <a class="rounded-xl border border-zinc-200 px-4 py-2.5 font-medium hover:bg-zinc-50" href="events.php">Clear</a>
+        </div>
+
+        <div class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            {{ ui.select('category', 'Type', categories, search.category, {}, 'Any') }}
+            {{ ui.select('city', 'City', cities, search.city, {}, 'Any') }}
+            {{ ui.select('rating', 'Rating', {5: '5 stars only', 4: '4 stars and up', 3: '3 stars and up', 2: '2 stars and up', 1: '1 star and up'}, search.rating, {}, 'Any') }}
+            {{ ui.field('from', 'From', search.from, {}, {type: 'date'}) }}
+            {{ ui.field('to', 'To', search.to, {}, {type: 'date'}) }}
+            {{ ui.select('sort', 'Sort by', {newest: 'Newest first', oldest: 'Oldest first', rating: 'Highest rated', title: 'Title A–Z'}, search.sort, {}) }}
+        </div>
+    </form>
+
+    <p class="mb-3 font-semibold" data-count aria-live="polite">{{ label }}</p>
+    <div class="transition-opacity" data-results>
+        {% include '_event_cards.twig' %}
+    </div>
+{% endblock %}

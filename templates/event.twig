@@ -1,0 +1,143 @@
+{# One event. Variables: id, event, people, jobs #}
+{% extends 'base.twig' %}
+{% import 'macros.twig' as ui %}
+
+{% set icon_button = 'grid size-9 place-items-center rounded-xl border border-zinc-200 hover:border-brand hover:text-brand' %}
+
+{% block title %}{{ event ? event.title : 'Event not found' }}{% endblock %}
+
+{% block content %}
+    <a class="mb-3.5 inline-flex items-center gap-1 text-sm font-medium text-brand" href="events.php"><i class="bi bi-caret-left-fill"></i>All events</a>
+
+    {% if not event %}
+        <div class="rounded-2xl border border-zinc-200 px-4 py-14 text-center text-zinc-500">
+            <p class="font-semibold text-zinc-900">Event not found</p>
+            <p class="mb-4 text-[13px]">It may have been deleted.</p>
+            <a class="inline-flex rounded-xl bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark" href="events.php">Back to events</a>
+        </div>
+    {% else %}
+
+    <div class="grid gap-6 xl:grid-cols-3">
+
+        {# ============ Left: summary, people, jobs ============ #}
+        <div class="grid min-w-0 content-start gap-6 xl:col-span-2">
+
+            <section class="rounded-2xl border border-zinc-200">
+                <div class="flex items-center justify-between gap-3 px-5 pb-2 pt-5">
+                    <h2 class="text-lg font-semibold">Summary</h2>
+                    <a class="{{ icon_button }}" href="event_form.php?id={{ id }}" title="Edit summary"><i class="bi bi-pencil-fill"></i></a>
+                </div>
+                <div class="whitespace-pre-line px-5 pb-5 pt-2 leading-relaxed">{{ event.summary }}</div>
+            </section>
+
+            <section class="rounded-2xl border border-zinc-200" id="people">
+                <div class="flex items-center justify-between gap-3 px-5 pb-3 pt-5">
+                    <h2 class="text-lg font-semibold">People I Met <span class="font-normal text-zinc-500">({{ people|length }})</span></h2>
+                    <a class="rounded-full border border-zinc-200 px-3 py-1 text-[13px] font-medium hover:border-brand hover:text-brand" href="person_form.php?event_id={{ id }}">+ Add person</a>
+                </div>
+
+                {% for person in people %}
+                    <div class="flex gap-3.5 border-t border-zinc-200 px-5 py-4">
+                        {{ ui.avatar(person.id, 12) }}
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <h3 class="font-medium">{{ person.name }}</h3>
+                                    <p class="text-[13px] text-zinc-500">{{ [person.job_title, person.company]|filter(v => v)|join(' · ') }}</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    {{ ui.follow_badge(person.follow_up) }}
+                                    <a class="{{ icon_button }}" href="person_form.php?id={{ person.id }}" title="Edit {{ person.name }}"><i class="bi bi-pencil-fill"></i></a>
+                                </div>
+                            </div>
+
+                            <div class="mt-2">{{ ui.contact_links(person) }}</div>
+
+                            {% if person.notes %}<p class="mt-2.5 text-[13px] text-zinc-500">{{ person.notes }}</p>{% endif %}
+                        </div>
+                    </div>
+                {% else %}
+                    <p class="px-5 pb-5 text-[13px] text-zinc-500">Nobody added yet. Add the people you swapped details with.</p>
+                {% endfor %}
+            </section>
+
+            <section class="rounded-2xl border border-zinc-200" id="jobs">
+                <div class="flex items-center justify-between gap-3 px-5 pb-2 pt-5">
+                    <h2 class="text-lg font-semibold">Jobs Saved <span class="font-normal text-zinc-500">({{ jobs|length }})</span></h2>
+                    <a class="rounded-full border border-zinc-200 px-3 py-1 text-[13px] font-medium hover:border-brand hover:text-brand" href="job_form.php?event_id={{ id }}">+ Save a job</a>
+                </div>
+
+                <ul class="px-5 pb-3">
+                    {% for job in jobs %}
+                        <li class="flex items-start justify-between gap-3 border-b border-zinc-200 py-3 last:border-b-0">
+                            <div class="min-w-0">
+                                <div class="font-medium">{{ job.title }} – {{ job.company }}</div>
+                                <span class="text-[13px] text-zinc-500">{{ job.location }}</span>
+                                {% if job.notes %}<p class="mt-1 text-[13px] text-zinc-500">{{ job.notes }}</p>{% endif %}
+                            </div>
+                            <div class="flex items-center gap-2">
+                                {{ ui.status(job.status) }}
+                                {% if job.url %}<a class="{{ icon_button }}" href="{{ job.url }}" target="_blank" rel="noopener" title="Open job advert"><i class="bi bi-arrow-up-right-square-fill"></i></a>{% endif %}
+                                <a class="{{ icon_button }}" href="job_form.php?id={{ job.id }}" title="Edit job"><i class="bi bi-pencil-fill"></i></a>
+                            </div>
+                        </li>
+                    {% else %}
+                        <li class="pb-2 text-[13px] text-zinc-500">No jobs saved from this event.</li>
+                    {% endfor %}
+                </ul>
+            </section>
+        </div>
+
+        {# ============ Right: event card + details ============ #}
+        <div class="grid min-w-0 content-start gap-6">
+
+            <section class="rounded-2xl border border-zinc-200">
+                <div class="flex items-center justify-between px-5 pt-5">
+                    <a class="{{ icon_button }}" href="events.php" title="All events"><i class="bi bi-grid-fill"></i></a>
+                    <div class="flex gap-2">
+                        <a class="{{ icon_button }}" href="event_form.php?id={{ id }}" title="Edit event"><i class="bi bi-pencil-fill"></i></a>
+                        {# Delete: asks "Are you sure?" first, then is sent with Ajax #}
+                        <form method="post" action="event_delete.php" class="m-0" data-ajax
+                              data-confirm="Delete “{{ event.title }}”?"
+                              data-confirm-detail="The {{ people|length }} people and {{ jobs|length }} jobs saved from it will be deleted too."
+                              data-confirm-action="Delete event">
+                            <input type="hidden" name="token" value="{{ token }}">
+                            <input type="hidden" name="id" value="{{ id }}">
+                            <button class="{{ icon_button }}" type="submit" title="Delete event"><i class="bi bi-trash3-fill"></i></button>
+                        </form>
+                    </div>
+                </div>
+                <div class="flex flex-col items-center px-5 pb-6 pt-2 text-center">
+                    <div class="mb-4">{{ ui.date_block(event.event_date, true) }}</div>
+                    <p class="text-[13px] font-medium text-brand">{{ event.category }}</p>
+                    <h1 class="text-2xl font-semibold">{{ event.title }}</h1>
+                    <p class="mb-4 text-[13px] text-zinc-500">{{ event.event_date|date('l j F Y') }}</p>
+                    <div class="grid w-full grid-cols-2 gap-2">
+                        <a class="rounded-xl bg-brand px-3 py-2.5 text-center text-sm font-medium text-white hover:bg-brand-dark" href="person_form.php?event_id={{ id }}">Add person</a>
+                        <a class="rounded-xl border border-brand px-3 py-2.5 text-center text-sm font-medium text-brand hover:bg-brand hover:text-white" href="job_form.php?event_id={{ id }}">Save a job</a>
+                    </div>
+                </div>
+            </section>
+
+            <section class="rounded-2xl border border-zinc-200 pb-2">
+                <div class="flex items-center justify-between gap-3 px-5 pb-2 pt-5">
+                    <h2 class="text-lg font-semibold">Event Details</h2>
+                    <a class="{{ icon_button }}" href="event_form.php?id={{ id }}" title="Edit event"><i class="bi bi-pencil-fill"></i></a>
+                </div>
+                <dl class="divide-y divide-zinc-100 px-5">
+                    <div class="py-3"><dt class="text-xs text-zinc-500">Date attended</dt><dd class="mt-0.5 font-medium">{{ event.event_date|date('j F Y') }} · {{ event.event_date|time_ago }}</dd></div>
+                    <div class="py-3"><dt class="text-xs text-zinc-500">Type</dt><dd class="mt-0.5 font-medium">{{ event.category }}</dd></div>
+                    <div class="py-3"><dt class="text-xs text-zinc-500">Venue</dt><dd class="mt-0.5 font-medium">{{ [event.venue, event.city]|filter(v => v)|join(', ')|default('–') }}</dd></div>
+                    <div class="py-3"><dt class="text-xs text-zinc-500">Where you sat</dt><dd class="mt-0.5 font-medium">{{ event.seat|default('Not seated') }}</dd></div>
+                    <div class="py-3">
+                        <dt class="text-xs text-zinc-500">Your rating</dt>
+                        <dd class="mt-0.5">{{ event.rating ? ui.stars(event.rating, 'text-lg') : 'Not rated' }}</dd>
+                    </div>
+                    <div class="py-3"><dt class="text-xs text-zinc-500">People met · Jobs saved</dt><dd class="mt-0.5 font-medium">{{ people|length }} · {{ jobs|length }}</dd></div>
+                </dl>
+            </section>
+        </div>
+    </div>
+
+    {% endif %}
+{% endblock %}

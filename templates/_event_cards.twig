@@ -1,0 +1,45 @@
+{# The event cards on events.php. Also sent on its own by events.php?ajax=1 (live search).
+   Variables: events #}
+{% import 'macros.twig' as ui %}
+
+{% if events %}
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        {% for event in events %}
+            {# Same layout as the "Latest event" card: big red date block in the middle, buttons side by side at the bottom #}
+            <article class="flex flex-col rounded-2xl border border-zinc-200 p-5">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-medium">{{ event.category }}</span>
+                    {% if event.rating %}
+                        {{ ui.stars(event.rating) }}
+                    {% else %}
+                        <span class="text-[13px] text-zinc-500">Not rated</span>
+                    {% endif %}
+                </div>
+
+                <div class="flex flex-1 flex-col items-center pt-2 text-center">
+                    <div class="mb-4">{{ ui.date_block(event.event_date, true) }}</div>
+                    <h3 class="text-xl font-semibold"><a class="hover:text-brand" href="event.php?id={{ event.id }}">{{ event.title }}</a></h3>
+                    <p class="text-[13px] text-zinc-500">{{ [event.venue, event.city]|filter(v => v)|join(', ')|default('No venue added') }} · {{ event.event_date|date('Y') }}</p>
+                    {% if event.seat %}
+                        <span class="mt-3 rounded-full border border-brand px-2.5 py-1 text-[13px] font-medium text-brand">Seat: {{ event.seat }}</span>
+                    {% endif %}
+                    <p class="mt-3 line-clamp-2 text-[13px] text-zinc-500">{{ event.summary }}</p>
+                    <p class="mt-2 text-[13px] font-medium">
+                        {{ event.people_count }} {{ event.people_count == 1 ? 'person' : 'people' }} · {{ event.job_count }} {{ event.job_count == 1 ? 'job' : 'jobs' }}
+                    </p>
+                </div>
+
+                {# The two calls to action: solid red first, red outline second #}
+                <div class="mt-5 grid grid-cols-2 gap-2">
+                    <a class="rounded-xl bg-brand px-3 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-brand-dark" href="event.php?id={{ event.id }}">View</a>
+                    <a class="rounded-xl border border-brand px-3 py-2.5 text-center text-sm font-medium text-brand transition-colors hover:bg-brand hover:text-white" href="event_form.php?id={{ event.id }}">Edit</a>
+                </div>
+            </article>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="rounded-2xl border border-zinc-200 px-4 py-14 text-center text-zinc-500">
+        <p class="font-semibold text-zinc-900">No events match those filters</p>
+        <p class="text-[13px]">Try a wider date range or clear some filters.</p>
+    </div>
+{% endif %}
