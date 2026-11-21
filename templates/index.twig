@@ -1,0 +1,182 @@
+{# Dashboard. Variables: stats, recent, latest, people, jobs, statuses #}
+{% extends 'base.twig' %}
+{% import 'macros.twig' as ui %}
+
+{% set panel = 'min-w-0 rounded-2xl border border-zinc-200 bg-white' %}
+{% set panel_head = 'flex items-center justify-between gap-3 px-5 pb-3 pt-5' %}
+{% set small_button = 'rounded-full border border-zinc-200 px-3 py-1 text-[13px] font-medium transition-colors hover:border-brand hover:text-brand' %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+
+    {# ================= Greeting + main actions ================= #}
+    <div class="mb-8 flex flex-wrap items-end justify-between gap-6">
+        <div>
+            <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">{{ greeting() }}</h1>
+            <p class="mt-2 text-zinc-500">{{ today_text() }} · Every event you've been to, the people you met and the jobs you found.</p>
+        </div>
+        <div class="flex gap-3">
+            <a class="rounded-full bg-brand px-5 py-2.5 font-medium text-white transition-colors hover:bg-brand-dark" href="event_form.php">+ Add event</a>
+            <a class="rounded-full border border-zinc-300 px-5 py-2.5 font-medium transition-colors hover:border-brand hover:text-brand" href="events.php">Find an event</a>
+        </div>
+    </div>
+
+    {# ================= Four stat cards (the first one is red) ================= #}
+    {% set cards = [
+        {href: 'events.php', label: 'Events attended', value: stats.events, note: '+' ~ stats.events_month ~ ' this month'},
+        {href: 'people.php', label: 'People met', value: stats.people, note: stats.follow_ups ~ ' still to follow up'},
+        {href: 'jobs.php', label: 'Jobs saved', value: stats.jobs, note: stats.in_progress ~ ' in progress'},
+        {href: 'events.php?sort=rating', label: 'Average rating', value: stats.avg_rating ?? '–', note: 'out of 5, across ' ~ stats.rated ~ ' events'}
+    ] %}
+    <div class="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {% for card in cards %}
+            <a class="group flex flex-col rounded-2xl border p-5 transition-colors {{ loop.first ? 'border-brand bg-brand text-white hover:bg-brand-dark' : 'border-zinc-200 bg-white hover:border-brand' }}" href="{{ card.href }}">
+                <div class="flex items-start justify-between gap-3">
+                    <span class="font-medium">{{ card.label }}</span>
+                    <span class="grid size-8 place-items-center rounded-full text-sm {{ loop.first ? 'bg-white text-brand' : 'border border-zinc-300 group-hover:border-brand group-hover:text-brand' }}"><i class="bi bi-arrow-up-right"></i></span>
+                </div>
+                <span class="mt-5 text-5xl font-semibold leading-none tracking-tight tabular-nums">{{ card.value }}</span>
+                <span class="mt-3 text-[13px] {{ loop.first ? 'text-white/80' : 'text-zinc-500' }}">{{ card.note }}</span>
+            </a>
+        {% endfor %}
+    </div>
+
+    {# ================= Panels: 4 columns on wide screens ================= #}
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+
+        {# Recent events (2 columns wide) #}
+        <section class="{{ panel }} md:col-span-2">
+            <div class="{{ panel_head }}">
+                <h2 class="text-lg font-semibold">Recent events</h2>
+                <a class="{{ small_button }}" href="events.php">View all</a>
+            </div>
+            <ul class="divide-y divide-zinc-100 border-t border-zinc-100">
+                {% for event in recent %}
+                    <li>
+                        <a class="group flex items-start gap-4 px-5 py-4 transition-colors hover:bg-zinc-50" href="event.php?id={{ event.id }}">
+                            {{ ui.date_block(event.event_date) }}
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-baseline justify-between gap-3">
+                                    <h3 class="truncate font-medium group-hover:text-brand">{{ event.title }}</h3>
+                                    {% if event.rating %}{{ ui.stars(event.rating, 'text-xs') }}{% endif %}
+                                </div>
+                                <p class="mt-0.5 text-[13px] text-zinc-500">
+                                    {{ event.event_date|time_ago }} · {{ event.category }} ·
+                                    {{ event.people_count }} {{ event.people_count == 1 ? 'person' : 'people' }} ·
+                                    {{ event.job_count }} {{ event.job_count == 1 ? 'job' : 'jobs' }}
+                                </p>
+                                <p class="mt-1.5 line-clamp-1 text-[13px] text-zinc-600">{{ event.summary }}</p>
+                            </div>
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="px-5 py-4 text-[13px] text-zinc-500">No events yet. <a class="text-brand" href="event_form.php">Add your first one</a>.</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        {# Latest event #}
+        <section class="{{ panel }}">
+            {% if latest %}
+                <div class="flex items-center justify-between px-5 pt-5">
+                    <h2 class="flex items-center gap-2 text-[17px] font-semibold"><i class="bi bi-calendar-check-fill text-lg text-brand"></i>Latest event</h2>
+                    <div class="flex gap-2">
+                        <a class="grid size-9 place-items-center rounded-xl border border-zinc-200 hover:border-brand hover:text-brand" href="event_form.php?id={{ latest.id }}" title="Edit event"><i class="bi bi-pencil-fill"></i></a>
+                        <a class="grid size-9 place-items-center rounded-xl border border-zinc-200 hover:border-brand hover:text-brand" href="event.php?id={{ latest.id }}" title="Open event"><i class="bi bi-arrow-up-right"></i></a>
+                    </div>
+                </div>
+                <div class="flex flex-col items-center px-5 pb-6 pt-2 text-center">
+                    <div class="mb-4">{{ ui.date_block(latest.event_date, true) }}</div>
+                    <h3 class="text-xl font-semibold">{{ latest.title }}</h3>
+                    <p class="mb-4 text-[13px] text-zinc-500">{{ latest.category }} · {{ [latest.venue, latest.city]|filter(v => v)|join(', ') }}</p>
+                    {# The two things you usually do after an event #}
+                    <div class="mt-2 grid w-full grid-cols-2 gap-2">
+                        <a class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 font-medium text-white transition-colors hover:bg-brand-dark" href="person_form.php?event_id={{ latest.id }}">
+                            <i class="bi bi-person-plus-fill"></i>Add person
+                        </a>
+                        <a class="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 px-4 py-2.5 font-medium transition-colors hover:border-brand hover:text-brand" href="job_form.php?event_id={{ latest.id }}">
+                            <i class="bi bi-bookmark-plus-fill text-brand"></i>Save a job
+                        </a>
+                    </div>
+                </div>
+            {% else %}
+                <div class="px-5 py-14 text-center text-zinc-500">
+                    <p class="font-semibold text-zinc-900">Your diary is empty</p>
+                    <p class="mb-4 text-[13px]">Add the first event you went to.</p>
+                    <a class="inline-flex rounded-xl bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark" href="event_form.php">Add event</a>
+                </div>
+            {% endif %}
+        </section>
+
+        {# Recently met: the last 3 people #}
+        <section class="{{ panel }} flex flex-col">
+            <div class="{{ panel_head }}">
+                <h2 class="text-lg font-semibold">Recently met</h2>
+                {% if latest %}<a class="{{ small_button }}" href="person_form.php?event_id={{ latest.id }}">+ New</a>{% endif %}
+            </div>
+            <ul class="px-2 pb-2">
+                {% for person in people %}
+                    <li>
+                        <a class="group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-zinc-50" href="person_form.php?id={{ person.id }}">
+                            {{ ui.avatar(person.id, 10) }}
+                            <span class="min-w-0 flex-1">
+                                <span class="block truncate text-sm font-medium group-hover:text-brand">{{ person.name }}</span>
+                                <span class="block truncate text-xs text-zinc-500">Met at {{ person.event_title }}</span>
+                            </span>
+                            {{ ui.follow_badge(person.follow_up) }}
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="px-3 pb-3 text-[13px] text-zinc-500">Nobody added yet.</li>
+                {% endfor %}
+            </ul>
+            <div class="mt-auto border-t border-zinc-100 px-5 py-4">
+                <a class="text-[13px] font-medium text-brand underline-offset-4 hover:underline" href="people.php">See everyone you've met</a>
+            </div>
+        </section>
+
+        {# Recent jobs (3 columns wide) #}
+        <section class="{{ panel }} md:col-span-2 xl:col-span-3">
+            <div class="{{ panel_head }}">
+                <h2 class="text-lg font-semibold">Recent jobs</h2>
+                <a class="{{ small_button }}" href="jobs.php">View all</a>
+            </div>
+            <ul class="divide-y divide-zinc-100 border-t border-zinc-100">
+                {% for job in jobs %}
+                    <li>
+                        <a class="group flex items-start justify-between gap-4 px-5 py-4 transition-colors hover:bg-zinc-50" href="job_form.php?id={{ job.id }}">
+                            <div class="min-w-0">
+                                <h3 class="truncate font-medium group-hover:text-brand">{{ job.title }}</h3>
+                                <p class="mt-0.5 truncate text-[13px] text-zinc-500">{{ [job.company, job.location]|filter(v => v)|join(' · ') }}</p>
+                                <p class="mt-1.5 truncate text-xs text-zinc-400">Found at {{ job.event_title }} · saved {{ job.created_at|time_ago|lower }}</p>
+                            </div>
+                            {{ ui.status(job.status) }}
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="px-5 py-4 text-[13px] text-zinc-500">No jobs saved yet. Open an event and use “Save a job”.</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        {# Job status: how many jobs at each stage #}
+        <section class="{{ panel }}">
+            <div class="{{ panel_head }}">
+                <h2 class="text-lg font-semibold">Job status</h2>
+                <span class="text-[13px] tabular-nums text-zinc-500">{{ stats.jobs }} total</span>
+            </div>
+            <ul class="px-2 pb-2">
+                {% for status, total in statuses %}
+                    <li>
+                        <a class="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-zinc-50" href="jobs.php?status={{ status }}">
+                            {{ ui.status(status) }}
+                            <span class="text-lg font-semibold tabular-nums {{ total > 0 ? '' : 'text-zinc-300' }}">{{ total }}</span>
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </section>
+
+    </div>
+{% endblock %}
