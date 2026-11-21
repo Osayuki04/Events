@@ -1,0 +1,31 @@
+{# Everyone you've met. Variables: people, label, stats, q, follow_up #}
+{% extends 'base.twig' %}
+{% import 'macros.twig' as ui %}
+
+{% block title %}People{% endblock %}
+
+{% block content %}
+    <div class="mb-8">
+        <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">People</h1>
+        <p class="mt-2 text-zinc-500">Everyone you've met at your events, and who you still need to follow up with.</p>
+    </div>
+
+    {# Stat cards. Clicking one filters the people (Ajax, see app.js). The selected card turns red. #}
+    <div class="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3" data-status-filter data-field="follow_up">
+        {{ ui.stat_card('people.php?q=' ~ q|url_encode, '', follow_up, 'All people', stats[''], 'everyone you saved') }}
+        {{ ui.stat_card('people.php?follow_up=1&q=' ~ q|url_encode, '1', follow_up, 'To follow up', stats['1'], 'waiting for a message') }}
+        {{ ui.stat_card('people.php?follow_up=0&q=' ~ q|url_encode, '0', follow_up, 'Followed up', stats['0'], 'already in touch') }}
+    </div>
+
+    {# Search: results update as you type, with name suggestions (Ajax, see app.js) #}
+    <form method="get" action="people.php" class="mb-6 flex gap-3 rounded-2xl border border-zinc-200 p-5" data-live-search role="search">
+        <input type="hidden" name="follow_up" value="{{ follow_up }}">
+        {{ ui.search_box(q, 'Search by name, company, job title or event', 'people') }}
+        <button class="rounded-xl bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark" type="submit">Search</button>
+    </form>
+
+    <p class="mb-3 font-semibold" data-count aria-live="polite">{{ label }}</p>
+    <div class="transition-opacity" data-results>
+        {% include '_people_cards.twig' %}
+    </div>
+{% endblock %}

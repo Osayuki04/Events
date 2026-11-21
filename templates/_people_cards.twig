@@ -1,0 +1,52 @@
+{# The person cards on people.php. Also sent on its own by people.php?ajax=1 (live search).
+   Variables: people, q, follow_up #}
+{% import 'macros.twig' as ui %}
+
+{% if people %}
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        {% for person in people %}
+            {# Same layout as the "Latest event" card: big avatar in the middle, buttons side by side at the bottom #}
+            <article class="flex flex-col rounded-2xl border border-zinc-200 p-5">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-[13px] text-zinc-500">{{ person.event_date|date('j M Y') }}</span>
+                    {{ ui.follow_badge(person.follow_up) }}
+                </div>
+
+                <div class="flex flex-1 flex-col items-center pt-2 text-center">
+                    <div class="mb-4">{{ ui.avatar(person.id, 26) }}</div>
+                    <h3 class="text-xl font-semibold">{{ person.name }}</h3>
+                    <p class="text-[13px] text-zinc-500">{{ [person.job_title, person.company]|filter(v => v)|join(' · ') }}</p>
+                    <p class="mt-1 text-[13px] text-zinc-500">
+                        Met at <a class="text-brand hover:underline" href="event.php?id={{ person.event_id }}">{{ person.event_title }}</a>
+                    </p>
+
+                    <div class="mt-4">{{ ui.contact_links(person, true) }}</div>
+
+                    {% if person.notes %}
+                        <p class="mt-3 text-[13px] text-zinc-500">{{ person.notes }}</p>
+                    {% endif %}
+                </div>
+
+                {# The two calls to action: solid red first, red outline second.
+                   The first one saves in the background (Ajax): data-ajax on the form, see app.js #}
+                <div class="mt-5 grid grid-cols-2 gap-2">
+                    <form method="post" action="people.php" class="m-0" data-ajax>
+                        <input type="hidden" name="token" value="{{ token }}">
+                        <input type="hidden" name="id" value="{{ person.id }}">
+                        <input type="hidden" name="q" value="{{ q }}">
+                        <input type="hidden" name="follow_up" value="{{ follow_up }}">
+                        <button class="w-full rounded-xl bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark" type="submit">
+                            {{ person.follow_up ? 'Mark as followed up' : 'Follow up again' }}
+                        </button>
+                    </form>
+                    <a class="rounded-xl border border-brand px-3 py-2.5 text-center text-sm font-medium text-brand transition-colors hover:bg-brand hover:text-white" href="person_form.php?id={{ person.id }}">Edit</a>
+                </div>
+            </article>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="rounded-2xl border border-zinc-200 px-4 py-14 text-center text-zinc-500">
+        <p class="font-semibold text-zinc-900">{{ q or follow_up != '' ? 'Nobody matches that search' : 'No people yet' }}</p>
+        <p class="text-[13px]">Open an event and use the + next to “People I Met” to save someone.</p>
+    </div>
+{% endif %}
