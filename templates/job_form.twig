@@ -1,0 +1,60 @@
+{# Save or edit a job. Variables: id, event_id, job, event, form, errors, statuses #}
+{% extends 'base.twig' %}
+{% import 'macros.twig' as ui %}
+
+{% block title %}{{ job ? 'Edit job' : 'Save a job' }}{% endblock %}
+
+{% block content %}
+    {% if not event %}
+        <a class="mb-3.5 inline-flex items-center gap-1 text-sm font-medium text-brand" href="jobs.php"><i class="bi bi-caret-left-fill"></i>All jobs</a>
+        <div class="rounded-xl border border-zinc-200 px-4 py-3">That job or event doesn't exist. It may have been deleted.</div>
+    {% else %}
+
+    <a class="mb-3.5 inline-flex items-center gap-1 text-sm font-medium text-brand" href="event.php?id={{ event_id }}#jobs"><i class="bi bi-caret-left-fill"></i>{{ event.title }}</a>
+
+    <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+            <h1 class="text-4xl font-semibold tracking-tight">{{ job ? job.title : 'Save a job' }}</h1>
+            <p class="mt-2 text-zinc-500">Found at {{ event.title }} on {{ event.event_date|date('j F Y') }}.</p>
+        </div>
+        {% if job %}
+            <form method="post" action="job_form.php?id={{ id }}" class="m-0" data-ajax
+                  data-confirm="Remove this job?"
+                  data-confirm-detail="{{ job.title }} at {{ job.company }} will be deleted from your diary."
+                  data-confirm-action="Remove">
+                <input type="hidden" name="token" value="{{ token }}">
+                <input type="hidden" name="action" value="delete">
+                <button class="rounded-xl border border-brand px-4 py-2.5 font-medium text-brand hover:bg-brand hover:text-white" type="submit">Remove</button>
+            </form>
+        {% endif %}
+    </div>
+
+    {# data-ajax: sent in the background by app.js; errors appear under the fields without reloading #}
+    <form method="post" action="job_form.php?{{ job ? 'id=' ~ id : 'event_id=' ~ event_id }}" class="rounded-2xl border border-zinc-200 p-5" novalidate data-ajax>
+        <input type="hidden" name="token" value="{{ token }}">
+        <input type="hidden" name="action" value="save">
+
+        <div class="grid gap-8 lg:grid-cols-2">
+            <div class="grid content-start gap-4">
+                {{ ui.field('title', 'Job title', form.title, errors, {required: true, maxlength: 120, suggest: 'job_title'}) }}
+                <div class="grid gap-4 sm:grid-cols-2">
+                    {{ ui.field('company', 'Company', form.company, errors, {required: true, maxlength: 80, suggest: 'company'}) }}
+                    {{ ui.field('location', 'Location', form.location, errors, {maxlength: 80, placeholder: 'e.g. Birmingham (hybrid)', suggest: 'location'}) }}
+                </div>
+                {{ ui.field('url', 'Link to the job advert', form.url, errors, {type: 'url', maxlength: 255, placeholder: 'https://…'}) }}
+            </div>
+
+            <div class="grid content-start gap-4">
+                {{ ui.select('status', 'Status', statuses, form.status, errors) }}
+                {{ ui.field('notes', 'Notes', form.notes, errors, {rows: 5, maxlength: 2000, placeholder: 'Who told you about it, deadlines, next steps…'}) }}
+            </div>
+        </div>
+
+        <div class="mt-6 flex gap-2 border-t border-zinc-200 pt-5">
+            <button class="rounded-xl bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark" type="submit">{{ job ? 'Save changes' : 'Save job' }}</button>
+            <a class="rounded-xl border border-brand px-4 py-2.5 font-medium text-brand hover:bg-brand hover:text-white" href="event.php?id={{ event_id }}#jobs">Cancel</a>
+        </div>
+    </form>
+
+    {% endif %}
+{% endblock %}
