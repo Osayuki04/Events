@@ -1,0 +1,69 @@
+{# Add or edit someone you met. Variables: id, event_id, person, event, form, errors #}
+{% extends 'base.twig' %}
+{% import 'macros.twig' as ui %}
+
+{% block title %}{{ person ? 'Edit person' : 'Add person' }}{% endblock %}
+
+{% block content %}
+    {% if not event %}
+        <a class="mb-3.5 inline-flex items-center gap-1 text-sm font-medium text-brand" href="people.php"><i class="bi bi-caret-left-fill"></i>All people</a>
+        <div class="rounded-xl border border-zinc-200 px-4 py-3">That person or event doesn't exist. It may have been deleted.</div>
+    {% else %}
+
+    <a class="mb-3.5 inline-flex items-center gap-1 text-sm font-medium text-brand" href="event.php?id={{ event_id }}#people"><i class="bi bi-caret-left-fill"></i>{{ event.title }}</a>
+
+    <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+            <h1 class="text-4xl font-semibold tracking-tight">{{ person ? person.name : 'Add someone you met' }}</h1>
+            <p class="mt-2 text-zinc-500">Met at {{ event.title }} on {{ event.event_date|date('j F Y') }}.</p>
+        </div>
+        {% if person %}
+            <form method="post" action="person_form.php?id={{ id }}" class="m-0" data-ajax
+                  data-confirm="Remove {{ person.name }}?"
+                  data-confirm-detail="Their contact details will be deleted from your diary."
+                  data-confirm-action="Remove">
+                <input type="hidden" name="token" value="{{ token }}">
+                <input type="hidden" name="action" value="delete">
+                <button class="rounded-xl border border-brand px-4 py-2.5 font-medium text-brand hover:bg-brand hover:text-white" type="submit">Remove</button>
+            </form>
+        {% endif %}
+    </div>
+
+    {# data-ajax: sent in the background by app.js; errors appear under the fields without reloading #}
+    <form method="post" action="person_form.php?{{ person ? 'id=' ~ id : 'event_id=' ~ event_id }}" class="rounded-2xl border border-zinc-200 p-5" novalidate data-ajax>
+        <input type="hidden" name="token" value="{{ token }}">
+        <input type="hidden" name="action" value="save">
+
+        <div class="grid gap-8 lg:grid-cols-2">
+            <div class="grid content-start gap-4">
+                <h2 class="font-semibold">Who they are</h2>
+                {# suggest: shows people with a similar name who are already in your diary #}
+                {{ ui.field('name', 'Name', form.name, errors, {required: true, maxlength: 80, suggest: person ? null : 'person_name'}) }}
+                <div class="grid gap-4 sm:grid-cols-2">
+                    {{ ui.field('job_title', 'Job title', form.job_title, errors, {maxlength: 80, suggest: 'person_job_title'}) }}
+                    {{ ui.field('company', 'Company', form.company, errors, {maxlength: 80, suggest: 'company'}) }}
+                </div>
+                {{ ui.field('notes', 'Notes', form.notes, errors, {rows: 4, maxlength: 2000, placeholder: 'What you talked about, what to follow up on…'}) }}
+                <label class="flex items-center gap-2.5">
+                    <input class="size-4 accent-brand" type="checkbox" id="follow_up" name="follow_up" {{ form.follow_up ? 'checked' }}>
+                    I still need to follow up with them
+                </label>
+            </div>
+
+            <div class="grid content-start gap-4">
+                <h2 class="font-semibold">Contact details</h2>
+                {{ ui.field('email', 'Email', form.email, errors, {type: 'email', maxlength: 120}) }}
+                {{ ui.field('phone', 'Phone', form.phone, errors, {type: 'tel', maxlength: 30}) }}
+                {{ ui.field('linkedin', 'LinkedIn profile', form.linkedin, errors, {type: 'url', maxlength: 255, placeholder: 'https://www.linkedin.com/in/…'}) }}
+                {{ ui.field('other_social', 'Other social or website', form.other_social, errors, {type: 'url', maxlength: 255, placeholder: 'X, Instagram, GitHub, portfolio…'}) }}
+            </div>
+        </div>
+
+        <div class="mt-6 flex gap-2 border-t border-zinc-200 pt-5">
+            <button class="rounded-xl bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark" type="submit">{{ person ? 'Save changes' : 'Add person' }}</button>
+            <a class="rounded-xl border border-brand px-4 py-2.5 font-medium text-brand hover:bg-brand hover:text-white" href="event.php?id={{ event_id }}#people">Cancel</a>
+        </div>
+    </form>
+
+    {% endif %}
+{% endblock %}
