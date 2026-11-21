@@ -1,0 +1,34 @@
+{# Every saved job. Variables: jobs, label, stats, statuses, status, q #}
+{% extends 'base.twig' %}
+{% import 'macros.twig' as ui %}
+
+{% block title %}Jobs{% endblock %}
+
+{% block content %}
+    <div class="mb-8">
+        <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">Jobs</h1>
+        <p class="mt-2 text-zinc-500">These are the jobs you've saved from your events so far.</p>
+    </div>
+
+    {# Stat cards. Clicking one filters the jobs (Ajax, see app.js). The selected card turns red. #}
+    {% set notes = {'': 'everything you saved', Saved: 'not applied yet', Applied: 'waiting to hear back',
+                    Interview: 'interviews to prepare for', Offer: 'offers received', Rejected: "didn't go ahead"} %}
+    <div class="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6" data-status-filter data-field="status">
+        {{ ui.stat_card('jobs.php?q=' ~ q|url_encode, '', status, 'All jobs', stats[''], notes['']) }}
+        {% for s in statuses %}
+            {{ ui.stat_card('jobs.php?status=' ~ s ~ '&q=' ~ q|url_encode, s, status, s, stats[s], notes[s]) }}
+        {% endfor %}
+    </div>
+
+    {# Search: results update as you type, with suggestions (Ajax, see app.js) #}
+    <form method="get" action="jobs.php" class="mb-6 flex gap-3 rounded-2xl border border-zinc-200 p-5" data-live-search role="search">
+        <input type="hidden" name="status" value="{{ status }}">
+        {{ ui.search_box(q, 'Search by job, company, location or event', 'jobs') }}
+        <button class="rounded-xl bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark" type="submit">Search</button>
+    </form>
+
+    <p class="mb-3 font-semibold" data-count aria-live="polite">{{ label }}</p>
+    <div class="transition-opacity" data-results>
+        {% include '_job_cards.twig' %}
+    </div>
+{% endblock %}
