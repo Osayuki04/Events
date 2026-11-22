@@ -154,7 +154,16 @@ foreach (['index.php', 'events.php', 'people.php', 'jobs.php', 'event_form.php',
     }
     check("$path sends all security headers", !$missing, 'missing: ' . implode(', ', $missing));
     check("$path hides the PHP version (no X-Powered-By)", empty($h['x-powered-by']));
+    check("$path asks search engines not to index it", str_contains($h['x-robots-tag'][0] ?? '', 'noindex'));
 }
+
+// Items that don't exist answer with a 404 status, not a normal page
+foreach (['event.php?id=999999', 'event_form.php?id=999999', 'person_form.php?id=999999', 'job_form.php?id=999999', 'person_form.php?event_id=999999'] as $path) {
+    $status = request('GET', $path, [], false)[0];
+    check("$path (doesn't exist) returns 404", $status === 404, "status $status");
+}
+$status = request('GET', 'robots.txt', [], false)[0];
+check('robots.txt is there for search engines', $status === 200, "status $status");
 
 [$s, $h] = request('GET', 'index.php', [], false);
 $csp = $h['content-security-policy'][0] ?? '';
