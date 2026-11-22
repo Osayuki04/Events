@@ -28,6 +28,7 @@ if (!headers_sent()) {
     header('Referrer-Policy: strict-origin-when-cross-origin');      // don't leak full URLs to other sites
     header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
     header('Cross-Origin-Opener-Policy: same-origin');
+    header('X-Robots-Tag: noindex, nofollow');                       // a private diary: keep it out of search engines
     if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
         header('Strict-Transport-Security: max-age=31536000');       // HTTPS only (on servers that have it)
     }
