@@ -26,7 +26,7 @@ Server-side logic and client-side markup are kept apart:
 | `job_form.php` + `templates/job_form.twig` | Add / edit / remove a job |
 | `templates/_event_cards.twig`, `_people_cards.twig`, `_job_cards.twig` | The result cards, used by the full pages **and** by the Ajax live search |
 | `suggest.php` | Ajax endpoint for autocomplete and form filling (JSON) |
-| `tests/security_test.php` | Security tests: run from the command line, prints PASS / FAIL for 307 checks |
+| `tests/security_test.php` | Security tests: run from the command line, prints PASS / FAIL for 319 checks |
 | `assets/js/app.js` | All JavaScript: menu, "Are you sure?" box, live search, Ajax forms, autocomplete |
 | `vendor/` | Twig, installed with Composer (`composer.json`) |
 | `sql/schema.sql` | The whole database: creates every table and inserts all the data (kept out of git) |
@@ -56,6 +56,8 @@ Without JavaScript every form and search still works as a normal page.
 3. In phpMyAdmin create a database called `event_diary`, open its **SQL** tab, paste `sql/schema.sql` and press **Go**
 4. Open http://localhost/Events/
 
+To run the security tests (Apache and MySQL must be running): `composer test`
+
 ## Deploy to mi-linux
 
 1. Check the server's PHP version is **8.1 or newer** (Twig 3.30 needs it): upload a file containing `<?php phpinfo();` and open it, then delete it.
@@ -77,8 +79,7 @@ Without JavaScript every form and search still works as a normal page.
 | **XSS / HTML injection** | Tags are removed from input before saving (`clean_text`), Twig escapes every `{{ value }}` when shown (`autoescape`), app.js inserts text with `textContent`, and the Content-Security-Policy header blocks any script that isn't from this site or jsDelivr |
 | **SQL injection** | mysqli prepared statements (`?` placeholders) for every query that uses input, including `suggest.php` |
 | **Other security** | Form token on every POST form, checked with `hash_equals` (CSRF); session cookie is HttpOnly + SameSite; links must start with http(s):// so `javascript:` links can't be saved; PHP errors are never shown to visitors |
-| **Security headers** | Sent by `db.php` on every page: Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, Cross-Origin-Opener-Policy (and HSTS on HTTPS) |
-| **Security tests** | `tests/security_test.php` attacks every form, search and filter with XSS and SQL injection payloads and checks headers, CSRF, broken input and private files (307 checks). Run: `C:
-mpp\php\php.exe tests\security_test.php` |
+| **Security headers** | Sent by `db.php` on every page: Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, Cross-Origin-Opener-Policy, X-Robots-Tag (and HSTS on HTTPS). `robots.txt` also keeps the private diary out of search engines |
+| **Security tests** | `tests/security_test.php` attacks every form, search and filter with XSS and SQL injection payloads and checks headers, CSRF, broken input and private files (319 checks). Run: `C:\xampp\php\php.exe tests\security_test.php` |
 | **Ajax** | See the Ajax table above |
 | **Template engine** | Twig: `templates/` holds all markup, the `.php` files hold only logic |
