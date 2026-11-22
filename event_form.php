@@ -75,6 +75,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($id == 0 || $event)) {
     send_errors($errors); // Ajax: errors as JSON. Otherwise the form is shown again below.
 }
 
+// Editing an event that doesn't exist (wrong id or deleted): 404 status
+if ($id > 0 && !$event) {
+    http_response_code(404);
+}
+
 render('event_form.twig', [
     'page'       => 'events',
     'id'         => $id,

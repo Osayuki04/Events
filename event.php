@@ -28,4 +28,9 @@ if ($event) {
     $jobs = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
 }
 
+// Event doesn't exist (wrong id or deleted): tell the browser with a 404 status
+if (!$event) {
+    http_response_code(404);
+}
+
 render('event.twig', ['page' => 'events', 'id' => $id, 'event' => $event, 'people' => $people, 'jobs' => $jobs]);

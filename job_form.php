@@ -79,6 +79,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $event) {
     send_errors($errors); // Ajax: errors as JSON. Otherwise the form is shown again below.
 }
 
+// The job or its event doesn't exist (wrong id or deleted): 404 status
+if (!$event || ($id > 0 && !$job)) {
+    http_response_code(404);
+}
+
 render('job_form.twig', [
     'page'     => 'jobs',
     'id'       => $id,

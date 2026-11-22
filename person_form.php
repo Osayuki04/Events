@@ -91,6 +91,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $event) {
     send_errors($errors); // Ajax: errors as JSON. Otherwise the form is shown again below.
 }
 
+// The person or their event doesn't exist (wrong id or deleted): 404 status
+if (!$event || ($id > 0 && !$person)) {
+    http_response_code(404);
+}
+
 render('person_form.twig', [
     'page'     => 'people',
     'id'       => $id,
