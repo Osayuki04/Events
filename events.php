@@ -2,6 +2,7 @@
 // Events list with multi-criteria search. Logic only - the HTML is in templates/events.twig
 // events.php?ajax=1&...  returns just the cards as JSON (live search, see app.js)
 include("db.php");
+require_login(); // only for logged-in users: otherwise sent to login.php
 
 // Lists for the dropdowns
 $categories = mysqli_fetch_all(mysqli_query($mysqli, "SELECT * FROM categories ORDER BY name"), MYSQLI_ASSOC);

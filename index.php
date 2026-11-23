@@ -1,6 +1,7 @@
 <?php
 // Dashboard. Logic only - the HTML is in templates/index.twig
 include("db.php");
+require_login(); // only for logged-in users: otherwise sent to login.php
 
 // ---- Numbers for the four stat cards ----
 $sql = "SELECT

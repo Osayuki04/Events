@@ -8,6 +8,7 @@
 //   fill   = other form fields to fill in at the same time (e.g. picking a past event fills its venue and city)
 //   url    = open this page instead (e.g. "this person is already in your diary")
 include("db.php");
+require_login(); // only for logged-in users: otherwise sent to login.php
 
 $field = clean_text($_GET['field'] ?? '', 30);
 $q = clean_text($_GET['q'] ?? '', 80);

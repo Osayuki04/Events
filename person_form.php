@@ -3,6 +3,7 @@
 // Logic only - the HTML is in templates/person_form.twig
 // The form is sent with Ajax: errors come back as JSON and show under each field (see app.js).
 include("db.php");
+require_login(); // only for logged-in users: otherwise sent to login.php
 
 $id = (int) ($_GET['id'] ?? 0);
 $event_id = (int) ($_GET['event_id'] ?? 0);

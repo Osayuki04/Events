@@ -2,6 +2,7 @@
 // Everyone you've met. Logic only - the HTML is in templates/people.twig
 // people.php?ajax=1&...  returns just the cards as JSON (live search, see app.js)
 include("db.php");
+require_login(); // only for logged-in users: otherwise sent to login.php
 
 // ---- "Mark as followed up" / "Follow up again" button (sent with Ajax from the card) ----
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {

@@ -1,6 +1,7 @@
 <?php
 // One event: summary, people met, jobs saved. Logic only - the HTML is in templates/event.twig
 include("db.php");
+require_login(); // only for logged-in users: otherwise sent to login.php
 
 $id = (int) ($_GET['id'] ?? 0);
 

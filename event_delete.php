@@ -1,6 +1,7 @@
 <?php
 // Delete an event (sent with Ajax from the event page, after the "Are you sure?" box). No HTML.
 include("db.php");
+require_login(); // only for logged-in users: otherwise sent to login.php
 
 if ($_SERVER['REQUEST_METHOD'] != 'POST') {
     header("Location: events.php");
