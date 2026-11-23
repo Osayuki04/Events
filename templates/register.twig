@@ -1,0 +1,28 @@
+{# Create the account (only shown while the site has no accounts). Variables: username, errors #}
+{% extends 'base.twig' %}
+{% import 'macros.twig' as ui %}
+
+{% block title %}Create your account{% endblock %}
+
+{% block content %}
+    <div class="mx-auto max-w-md pt-6">
+        <div class="mb-8 text-center">
+            <span class="mx-auto mb-4 grid size-14 place-items-center rounded-2xl bg-brand text-2xl text-white"><i class="bi bi-person-fill-lock"></i></span>
+            <h1 class="text-3xl font-semibold tracking-tight">Create your account</h1>
+            <p class="mt-2 text-zinc-500">Yukylo is new here. Choose the username and password that will keep your diary private.</p>
+        </div>
+
+        <form method="post" action="register.php" class="grid gap-4 rounded-2xl border border-zinc-200 p-6" novalidate data-ajax>
+            <input type="hidden" name="token" value="{{ token }}">
+
+            {{ ui.field('username', 'Username', username, errors, {required: true, maxlength: 40, autocomplete: 'username', autofocus: true,
+                                                                  help: 'Letters, numbers, dots, dashes or underscores.'}) }}
+            {{ ui.field('password', 'Password', '', errors, {type: 'password', required: true, maxlength: 72, autocomplete: 'new-password',
+                                                              help: 'At least 8 characters, with a letter and a number.'}) }}
+            {{ ui.field('confirm', 'Type the password again', '', errors, {type: 'password', required: true, maxlength: 72, autocomplete: 'new-password'}) }}
+            {{ ui.captcha(errors) }}
+
+            <button class="mt-2 rounded-xl bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark" type="submit">Create account</button>
+        </form>
+    </div>
+{% endblock %}

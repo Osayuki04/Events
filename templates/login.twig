@@ -1,0 +1,26 @@
+{# Log in. Variables: next (page to go back to), username, errors #}
+{% extends 'base.twig' %}
+{% import 'macros.twig' as ui %}
+
+{% block title %}Log in{% endblock %}
+
+{% block content %}
+    <div class="mx-auto max-w-md pt-6">
+        <div class="mb-8 text-center">
+            <span class="mx-auto mb-4 grid size-14 place-items-center rounded-2xl bg-brand text-2xl text-white"><i class="bi bi-lock-fill"></i></span>
+            <h1 class="text-3xl font-semibold tracking-tight">Log in to Yukylo</h1>
+            <p class="mt-2 text-zinc-500">Your diary is private. Log in to see your events, people and jobs.</p>
+        </div>
+
+        {# data-ajax: sent in the background by app.js; a wrong try shows the errors and a new captcha #}
+        <form method="post" action="login.php?next={{ next|url_encode }}" class="grid gap-4 rounded-2xl border border-zinc-200 p-6" novalidate data-ajax>
+            <input type="hidden" name="token" value="{{ token }}">
+
+            {{ ui.field('username', 'Username', username, errors, {required: true, maxlength: 40, autocomplete: 'username', autofocus: not username}) }}
+            {{ ui.field('password', 'Password', '', errors, {type: 'password', required: true, maxlength: 200, autocomplete: 'current-password', autofocus: username != ''}) }}
+            {{ ui.captcha(errors) }}
+
+            <button class="mt-2 rounded-xl bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark" type="submit">Log in</button>
+        </form>
+    </div>
+{% endblock %}
