@@ -121,10 +121,56 @@ function count_rows(): array
 {
     global $mysqli;
     $counts = [];
-    foreach (['categories', 'events', 'people', 'jobs'] as $table) {
+    foreach (['categories', 'events', 'people', 'jobs', 'users'] as $table) {
         $counts[$table] = (int) mysqli_fetch_row(mysqli_query($mysqli, "SELECT COUNT(*) FROM $table"))[0];
     }
     return $counts;
+}
+
+// The session id in our cookie jar (the cookie the site gave us)
+function session_id_now(): string
+{
+    global $cookies;
+    foreach (file($cookies) ?: [] as $line) {
+        $parts = explode("\t", trim($line));
+        if (count($parts) === 7 && $parts[5] === session_name()) {
+            return $parts[6];
+        }
+    }
+    return '';
+}
+
+// Load the captcha picture, then read the code from our session file on the server.
+// A person reads it from the picture; the test can read it here because it runs on the same computer.
+function solve_captcha(): string
+{
+    request('GET', 'captcha.php', [], false);
+    $file = rtrim(ini_get('session.save_path') ?: sys_get_temp_dir(), '/\\') . '/sess_' . session_id_now();
+    $data = (string) @file_get_contents($file);
+    return preg_match('/s:4:"code";s:5:"([A-Z0-9]{5})"/', $data, $m) ? $m[1] : '';
+}
+
+// The form token on a page (the login form, the event form...)
+function token_from(string $path): string
+{
+    return preg_match('/name="token" value="([a-f0-9]+)"/', get($path), $m) ? $m[1] : '';
+}
+
+// Try to log in. Returns the JSON answer.
+function log_in_as(string $username, string $password, ?string $captcha = null): array
+{
+    $token = token_from('login.php');
+    return post('login.php', ['token' => $token, 'username' => $username, 'password' => $password, 'captcha' => $captcha ?? solve_captcha()]);
+}
+
+// A test account, stored the same way register.php stores one
+function make_user(string $username, string $password): void
+{
+    global $mysqli;
+    $hash = password_hash($password, PASSWORD_DEFAULT);
+    $stmt = mysqli_prepare($mysqli, "INSERT INTO users (username, password_hash) VALUES (?, ?)");
+    mysqli_stmt_bind_param($stmt, "ss", $username, $hash);
+    mysqli_stmt_execute($stmt);
 }
 
 // ------------------------------------------------------------------ start
@@ -133,12 +179,91 @@ echo "Security tests for $base\n";
 
 // Clean up anything left over from an earlier run, then remember how the database looks
 mysqli_query($mysqli, "DELETE FROM events WHERE title LIKE 'SECTEST%'");
+mysqli_query($mysqli, "DELETE FROM users WHERE username LIKE 'sectest%'");
 $before = count_rows();
 
-// Get a session and its form token, like a browser opening a form
-$page = get('event_form.php');
-preg_match('/name="token" value="([a-f0-9]+)"/', $page, $m);
-$token = $m[1] ?? '';
+$test_user = 'sectest_user';
+$test_password = 'SecTest-Pass-' . random_int(1000, 9999);
+make_user($test_user, $test_password);
+
+// ================================================================== 0. Login
+section('0. Login: sessions protect the pages, captcha, encrypted passwords');
+
+// --- Not logged in: every page sends you to the login page
+$protected = ['index.php', 'events.php', 'event.php?id=1', 'event_form.php', 'people.php', 'person_form.php?event_id=1',
+              'jobs.php', 'job_form.php?event_id=1', 'suggest.php?field=events&q=a'];
+foreach ($protected as $path) {
+    [$status, $h] = request('GET', $path, [], false);
+    check("$path needs a login (sent to login.php)", $status === 302 && str_starts_with($h['location'][0] ?? '', 'login.php'), "status $status");
+}
+foreach (['events.php?ajax=1', 'suggest.php?field=people&q=a'] as $path) {
+    $status = request('GET', $path)[0];
+    check("Ajax $path without a login gets 401", $status === 401, "status $status");
+}
+foreach (['event_delete.php', 'people.php', 'jobs.php'] as $path) {
+    $status = request('POST', $path, ['id' => 1], false)[0];
+    check("POST to $path without a login is refused", $status === 302, "status $status");
+}
+check('register.php is closed once an account exists', request('GET', 'register.php', [], false)[0] === 302);
+
+// --- Captcha
+[$status, $h, $svg] = request('GET', 'captcha.php', [], false);
+check('captcha.php is a picture (image/svg+xml)', str_starts_with($h['content-type'][0] ?? '', 'image/svg+xml'));
+check('captcha.php is never cached', str_contains($h['cache-control'][0] ?? '', 'no-store'));
+$code = solve_captcha();
+$svg = request('GET', 'captcha.php', [], false)[2];
+$code2 = solve_captcha();
+check('Every captcha picture has a new code', $code !== '' && $code !== $code2);
+check('The code is not in the picture as text (no <text>, not in the source)', !str_contains($svg, '<text') && !str_contains($svg, $code2));
+
+$r = log_in_as($test_user, $test_password, 'WRONG');
+check('Login refused with a wrong captcha (even with the right password)', ($r['ok'] ?? null) === false && isset($r['errors']['captcha']), json_encode($r));
+$r = log_in_as($test_user, $test_password, '');
+check('Login refused with no captcha', isset($r['errors']['captcha']));
+$code = solve_captcha();
+log_in_as($test_user, 'wrong-password', $code);
+$r = log_in_as($test_user, $test_password, $code);
+check('A captcha code can only be used once', isset($r['errors']['captcha']), json_encode($r));
+$r = post('login.php', ['username' => $test_user, 'password' => $test_password, 'captcha' => solve_captcha()]);
+check('Login refused without the form token (CSRF)', ($r['ok'] ?? null) === false && empty($r['redirect']));
+
+// --- Passwords
+$r = log_in_as($test_user, 'wrong-password');
+check('Wrong password refused', ($r['ok'] ?? null) === false && isset($r['errors']['password']));
+$r2 = log_in_as('sectest_nobody', 'wrong-password');
+check('Unknown username gets the same message (doesn\'t reveal usernames)', ($r['errors']['password'] ?? 'a') === ($r2['errors']['password'] ?? 'b'));
+foreach ($sqli as $payload) {
+    $r = log_in_as($payload, $payload);
+    check("SQL injection in the login doesn't log in: $payload", ($r['ok'] ?? null) === false);
+}
+foreach ($xss as $payload) {
+    $r = log_in_as($payload, 'x');
+    check('XSS in the username is not sent back: ' . substr($payload, 0, 30), leaks(json_encode($r, JSON_UNESCAPED_SLASHES)) === '');
+}
+$body = get('login.php?next=' . urlencode('"><script>alert(1)</script>'));
+check('XSS in login.php?next= is escaped', leaks($body) === '', leaks($body));
+
+$row = mysqli_fetch_assoc(mysqli_query($mysqli, "SELECT password_hash FROM users WHERE username = 'sectest_user'"));
+$hash = $row['password_hash'] ?? '';
+check('Password is stored encrypted (bcrypt hash), not as plain text', str_starts_with($hash, '$2y$') && !str_contains($hash, $test_password));
+check('The stored hash matches the password (password_verify)', password_verify($test_password, $hash));
+check('The same password hashed twice gives different hashes (random salt)', password_hash($test_password, PASSWORD_DEFAULT) !== password_hash($test_password, PASSWORD_DEFAULT));
+
+// --- Logging in
+$id_before = session_id_now();
+$r = post('login.php?next=' . urlencode('https://evil.example.com/'), ['token' => token_from('login.php'), 'username' => $test_user, 'password' => $test_password, 'captcha' => solve_captcha()]);
+check('Right username, password and captcha logs in', ($r['ok'] ?? null) === true, json_encode($r));
+check("After logging in it won't go to another site (?next=https://evil...)", ($r['redirect'] ?? '') === 'index.php', $r['redirect'] ?? '');
+check('A new session id after logging in (session fixation)', session_id_now() !== '' && session_id_now() !== $id_before);
+$location = request('GET', 'login.php?next=' . urlencode('events.php?q=a'), [], false)[1]['location'][0] ?? '';
+check('Logged in: login.php goes back to the page you wanted (?next=events.php)', $location === 'events.php?q=a', $location);
+foreach ($protected as $path) {
+    $status = request('GET', $path, [], false)[0];
+    check("$path opens when logged in", $status === 200, "status $status");
+}
+
+// Get the form token for the tests below, like a browser opening a form
+$token = token_from('event_form.php');
 check('Form token found on the event form', $token !== '');
 
 // ================================================================== 1. Headers
@@ -377,9 +502,34 @@ check('Event form refuses a type that does not exist', isset($r['errors']['categ
 $r = post("person_form.php?event_id=$event_id", ['token' => $token, 'action' => 'save', 'name' => 'SECTEST', 'email' => 'not-an-email']);
 check('Person form refuses a bad email address', isset($r['errors']['email']));
 
-// ================================================================== 8. The database is unharmed
-section('8. The database is unharmed');
+// ================================================================== 8. Logging out + locking after wrong passwords
+section('8. Logging out, and locking the account after wrong passwords');
 
+$status = request('GET', 'logout.php', [], false)[0];
+check('Opening logout.php with a link does not log out (POST only)', request('GET', 'index.php', [], false)[0] === 200);
+$r = post('logout.php', ['token' => 'wrong']);
+check('Log out without the right form token is refused (CSRF)', ($r['ok'] ?? null) === false && request('GET', 'index.php', [], false)[0] === 200);
+$id_before = session_id_now();
+$r = post('logout.php', ['token' => $token]);
+check('Log out works', ($r['ok'] ?? null) === true && ($r['redirect'] ?? '') === 'login.php', json_encode($r));
+check('After logging out the pages need a login again', request('GET', 'index.php', [], false)[0] === 302);
+check('A new session id after logging out', session_id_now() !== $id_before);
+$r = post('event_form.php', ['token' => $token, 'title' => 'SECTEST after logout', 'category_id' => 1, 'event_date' => '2026-01-01', 'summary' => 'x']);
+check('The old form token is useless after logging out', ($r['ok'] ?? null) === false);
+
+make_user('sectest_lock', 'Lock-Test-123');
+for ($i = 1; $i <= 5; $i++) {
+    log_in_as('sectest_lock', 'wrong-password');
+}
+$r = log_in_as('sectest_lock', 'Lock-Test-123');
+check('After 5 wrong passwords the account is locked (even the right password fails)', ($r['ok'] ?? null) === false && str_contains($r['errors']['password'] ?? '', 'Too many'), json_encode($r));
+$locked = mysqli_fetch_assoc(mysqli_query($mysqli, "SELECT locked_until FROM users WHERE username = 'sectest_lock'"));
+check('The lock is saved in the database', !empty($locked['locked_until']));
+
+// ================================================================== 9. The database is unharmed
+section('9. The database is unharmed');
+
+mysqli_query($mysqli, "DELETE FROM users WHERE username LIKE 'sectest%'");
 mysqli_query($mysqli, "DELETE FROM events WHERE title LIKE 'SECTEST%'"); // people and jobs go with them (ON DELETE CASCADE)
 $after = count_rows();
 foreach ($before as $table => $count) {
