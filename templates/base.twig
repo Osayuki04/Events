@@ -31,6 +31,8 @@
             <span class="grid size-9 place-items-center rounded-xl bg-brand text-white"><i class="bi bi-journal-bookmark-fill"></i></span>Yukylo
         </a>
 
+        {# Logged out (login / create account pages): only the name, no menu #}
+        {% if user %}
         <button class="my-3 ml-auto text-2xl lg:hidden" type="button" data-menu-toggle aria-controls="main-nav" aria-expanded="false" aria-label="Menu">
             <i class="bi bi-list"></i>
         </button>
@@ -48,7 +50,15 @@
             {% if page != 'index' %}
                 <a class="self-start rounded-full bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark lg:mb-3 lg:self-auto" href="event_form.php">+ Add event</a>
             {% endif %}
+
+            {# Who is logged in + log out (a POST form with the token, so other sites can't log you out) #}
+            <form method="post" action="logout.php" class="m-0 flex items-center gap-3 lg:mb-3" data-ajax>
+                <input type="hidden" name="token" value="{{ token }}">
+                <span class="flex items-center gap-1.5 text-sm text-zinc-500"><i class="bi bi-person-circle"></i>{{ user }}</span>
+                <button class="rounded-full border border-zinc-200 px-3.5 py-1.5 text-sm font-medium text-zinc-600 hover:border-brand hover:text-brand" type="submit">Log out</button>
+            </form>
         </div>
+        {% endif %}
     </div>
 </header>
 

@@ -138,6 +138,7 @@ let refreshResults = null; // set below on pages with a live search, used after 
     results.classList.add('opacity-50');
     try {
       const res = await fetch(`${form.getAttribute('action')}?${params}`, { headers: AJAX_HEADERS, signal: controller.signal });
+      if (res.status === 401) { location.href = 'login.php'; return; } // logged out (e.g. idle too long)
       if (!res.ok) throw new Error(res.status);
       const data = await res.json();
       results.innerHTML = data.html;   // built by Twig, which escapes every value
@@ -221,6 +222,8 @@ document.addEventListener('submit', async (e) => {
     }
     if (data.errors) showErrors(form, data.errors);
     if (data.error) showMessage(data.error);
+    // A captcha works only once, so after a failed try show a new picture
+    if (!data.ok) form.querySelectorAll('[data-captcha]').forEach(newCaptcha);
     if (data.refresh) {
       showMessage(data.message);
       if (refreshResults) refreshResults(); else location.reload();
@@ -230,6 +233,20 @@ document.addEventListener('submit', async (e) => {
   } finally {
     if (button) button.disabled = false;
   }
+});
+
+/* Captcha (login and create account): load a new picture and empty the box */
+function newCaptcha(img) {
+  img.src = `captcha.php?${Date.now()}`;
+  const input = img.closest('form')?.elements.captcha;
+  if (input) input.value = '';
+}
+document.addEventListener('click', (e) => {
+  const button = e.target.closest('[data-captcha-refresh]');
+  if (!button) return;
+  const img = button.closest('form').querySelector('[data-captcha]');
+  newCaptcha(img);
+  img.closest('form').elements.captcha?.focus();
 });
 
 /* ------------------------------------------------------------------ 5. Autocomplete */
