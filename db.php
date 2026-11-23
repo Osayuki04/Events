@@ -5,6 +5,7 @@
 //   2. Session + form token (CSRF protection)
 //   3. Twig, the template engine ($twig) - all HTML lives in the templates/ folder
 //   4. Small helpers every page uses (clean input, render a page, answer Ajax requests)
+//   5. Login: require_login() protects a page, check_captcha() checks the captcha
 
 // ---------------------------------------------------------------- 0. Security
 
@@ -55,8 +56,14 @@ mysqli_set_charset($mysqli, "utf8mb4");
 
 // ---------------------------------------------------------------- 2. Session
 
-// The session cookie can't be read by JavaScript (HttpOnly) and isn't sent from other sites (SameSite)
-session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax']);
+// The session cookie can't be read by JavaScript (HttpOnly) and isn't sent from other sites (SameSite).
+// On HTTPS it is only ever sent over HTTPS (Secure). Strict mode refuses session ids the server didn't make.
+ini_set('session.use_strict_mode', '1');
+session_set_cookie_params([
+    'httponly' => true,
+    'samesite' => 'Lax',
+    'secure'   => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+]);
 session_start();
 
 // Form token (CSRF protection): every POST form sends it back, and pages check it.
@@ -74,6 +81,7 @@ $twig = new \Twig\Environment(new \Twig\Loader\FilesystemLoader(__DIR__ . '/temp
 
 // Things every template can use
 $twig->addGlobal('token', $_SESSION['token']);
+$twig->addGlobal('user', $_SESSION['username'] ?? null); // who is logged in (null on the login page)
 $twig->addFunction(new \Twig\TwigFunction('greeting', 'greeting'));
 $twig->addFunction(new \Twig\TwigFunction('today_text', 'today_text'));
 $twig->addFilter(new \Twig\TwigFilter('time_ago', 'time_ago'));
@@ -153,4 +161,77 @@ function send_errors(array $errors): void
     if (is_ajax()) {
         send_json(['ok' => false, 'errors' => $errors]);
     }
+}
+
+// ---------------------------------------------------------------- 5. Login
+
+// Log out after 30 minutes without doing anything
+const IDLE_TIMEOUT = 30 * 60;
+
+// Put at the top of every page that needs a login (straight after include("db.php")).
+// Not logged in (or idle too long) -> sent to the login page, which brings you back afterwards.
+function require_login(): void
+{
+    $logged_in = !empty($_SESSION['user_id']);
+
+    if ($logged_in && time() - ($_SESSION['last_seen'] ?? 0) > IDLE_TIMEOUT) {
+        log_out();
+        $_SESSION['message'] = 'You were logged out after 30 minutes without using the site.';
+        $logged_in = false;
+    }
+
+    if (!$logged_in) {
+        if (is_ajax()) {
+            http_response_code(401);
+            send_json(['ok' => false, 'redirect' => 'login.php']);
+        }
+        // Remember the page so the login can bring you back to it (only for normal page views)
+        $page = basename($_SERVER['SCRIPT_NAME']) . (empty($_SERVER['QUERY_STRING']) ? '' : '?' . $_SERVER['QUERY_STRING']);
+        header('Location: login.php' . ($_SERVER['REQUEST_METHOD'] === 'GET' ? '?next=' . urlencode($page) : ''));
+        exit;
+    }
+
+    $_SESSION['last_seen'] = time();
+}
+
+// Logged in: a new session id (stops session fixation) and a new form token
+function log_in(array $user): void
+{
+    session_regenerate_id(true);
+    $_SESSION['user_id'] = (int) $user['id'];
+    $_SESSION['username'] = $user['username'];
+    $_SESSION['last_seen'] = time();
+    $_SESSION['token'] = bin2hex(random_bytes(32));
+}
+
+// Forget who was logged in and start a fresh session
+function log_out(): void
+{
+    $_SESSION = [];
+    session_regenerate_id(true);
+    $_SESSION['token'] = bin2hex(random_bytes(32));
+}
+
+// Only allow going back to one of our own pages after logging in (no "?next=https://evil.com")
+function safe_next(string $next): string
+{
+    // A page name like "events.php", maybe with "?..." after it. No spaces, backslashes or "//".
+    return preg_match('/^[a-z_]+\.php(\?[^\s\x5C]*)?$/', $next) && !str_contains($next, '//') ? $next : 'index.php';
+}
+
+// Check the captcha typed in. Each captcha works once and for 10 minutes only.
+function check_captcha($answer): bool
+{
+    $captcha = $_SESSION['captcha'] ?? null;
+    unset($_SESSION['captcha']); // used up, right or wrong (so it can't be guessed again and again)
+    if (!is_string($answer) || !$captcha || time() - $captcha['time'] > 600) {
+        return false;
+    }
+    return hash_equals($captcha['code'], strtoupper(trim($answer)));
+}
+
+// How many accounts exist (0 = the site is new and asks you to create one)
+function count_users(mysqli $mysqli): int
+{
+    return (int) mysqli_fetch_row(mysqli_query($mysqli, "SELECT COUNT(*) FROM users"))[0];
 }
