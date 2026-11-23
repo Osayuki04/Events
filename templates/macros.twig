@@ -3,7 +3,8 @@
 
 
 {# ---- A text box with its label and error message.
-     options: type, required, maxlength, placeholder, suggest (autocomplete field name), max, rows (makes a textarea), help ---- #}
+     options: type, required, maxlength, placeholder, suggest (autocomplete field name), max, rows (makes a textarea), help,
+     autocomplete (e.g. "current-password"), autofocus ---- #}
 {% macro field(name, label, value, errors, options = {}) %}
     {% set error = errors[name] ?? null %}
     {% set classes = 'w-full rounded-xl border bg-white px-3.5 py-2.5 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 ' ~ (error ? 'border-brand' : 'border-zinc-200') %}
@@ -20,6 +21,8 @@
                    {% if options.max is defined %}max="{{ options.max }}"{% endif %}
                    {% if options.placeholder is defined %}placeholder="{{ options.placeholder }}"{% endif %}
                    {% if options.suggest ?? false %}data-suggest="{{ options.suggest }}" autocomplete="off"{% endif %}
+                   {% if options.autocomplete is defined %}autocomplete="{{ options.autocomplete }}"{% endif %}
+                   {% if options.autofocus ?? false %}autofocus{% endif %}
                    {% if options.required ?? false %}required{% endif %}>
         {% endif %}
         <p class="mt-1 text-[13px] text-brand {{ error ? '' : 'hidden' }}" data-error-for="{{ name }}">{{ error }}</p>
@@ -142,5 +145,26 @@
         <input class="w-full rounded-xl border border-zinc-200 bg-white py-2.5 pl-10 pr-3.5 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
                type="search" name="q" value="{{ q }}" placeholder="{{ placeholder }}" maxlength="80" aria-label="{{ placeholder }}"
                data-suggest="{{ suggest }}" autocomplete="off">
+    </div>
+{% endmacro %}
+
+
+{# ---- The captcha: a picture of 5 letters (drawn by captcha.php) and a box to type them in.
+     The "New picture" button and refreshing after a wrong try are done by app.js. ---- #}
+{% macro captcha(errors) %}
+    {% set error = errors.captcha ?? null %}
+    <div>
+        <label class="mb-1.5 block text-[13px] font-medium text-zinc-500" for="captcha">Type the letters in the picture</label>
+        <div class="mb-2 flex items-center gap-2">
+            <img class="h-16 w-[200px] rounded-xl border border-zinc-200" src="captcha.php?{{ random() }}" width="200" height="64"
+                 alt="Captcha: 5 letters and numbers to type into the box below" data-captcha>
+            <button class="grid size-10 place-items-center rounded-full border border-zinc-200 text-zinc-500 hover:border-brand hover:text-brand"
+                    type="button" data-captcha-refresh aria-label="Show a new picture" title="Show a new picture">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+        <input class="w-full rounded-xl border bg-white px-3.5 py-2.5 uppercase tracking-[0.3em] focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 {{ error ? 'border-brand' : 'border-zinc-200' }}"
+               id="captcha" name="captcha" type="text" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+        <p class="mt-1 text-[13px] text-brand {{ error ? '' : 'hidden' }}" data-error-for="captcha">{{ error }}</p>
     </div>
 {% endmacro %}
