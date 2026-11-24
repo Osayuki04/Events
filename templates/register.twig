@@ -16,7 +16,7 @@
             <input type="hidden" name="token" value="{{ token }}">
 
             {{ ui.field('username', 'Username', username, errors, {required: true, maxlength: 40, autocomplete: 'username', autofocus: true,
-                                                                  help: 'Letters, numbers, dots, dashes or underscores.'}) }}
+                                                                  help: '3 to 40 characters: letters, numbers, dots, dashes or underscores.'}) }}
             {{ ui.field('password', 'Password', '', errors, {type: 'password', required: true, maxlength: 72, autocomplete: 'new-password',
                                                               help: 'At least 8 characters, with a letter and a number.'}) }}
             {{ ui.field('confirm', 'Type the password again', '', errors, {type: 'password', required: true, maxlength: 72, autocomplete: 'new-password'}) }}
