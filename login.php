@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $errors['password'] = 'Enter your password.';
     }
     if (!check_captcha($_POST['captcha'] ?? '')) {
-        $errors['captcha'] = "The letters didn't match the picture. Try the new one.";
+        $errors['captcha'] = "That didn't match the picture. Type the characters in the new one.";
     }
 
     if (!$errors) {
