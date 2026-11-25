@@ -13,18 +13,33 @@
 
 const AJAX_HEADERS = { 'X-Requested-With': 'fetch' };
 
-// Go to a page the server told us about (after saving, or a picked suggestion).
-// Only a page of this site like "event.php?id=5" is allowed, never another site or a javascript: link.
+// The pages of this site that app.js may go to, and the sections it may jump to on a page
+const PAGES = ['index.php', 'events.php', 'event.php', 'event_form.php', 'people.php', 'person_form.php',
+  'jobs.php', 'job_form.php', 'login.php', 'register.php'];
+const PAGE_SECTIONS = ['people', 'jobs'];
+const ID_PARAMS = ['id', 'event_id'];
+
+/*
+ * Go to a page the server told us about (after saving, a picked suggestion, or "log in again").
+ * The address is never used as it is: it is rebuilt from the fixed lists above plus whole numbers,
+ * e.g. "event.php?id=5#people". So it can only ever be one of our own pages (no open redirect,
+ * no javascript: links). Anything else in the address is dropped.
+ */
 function goTo(address) {
-  try {
-    const url = new URL(String(address), location.href);
-    const page = url.pathname.split('/').pop();
-    if (url.origin === location.origin && /^[a-z_]+\.php$/.test(page)) {
-      location.assign(url.pathname + url.search + url.hash);
-    }
-  } catch {
-    // not a valid address: stay on this page
-  }
+  const parts = /^([a-z_]+\.php)(\?[^#]*)?(#[a-z]+)?$/.exec(String(address ?? ''));
+  const page = parts ? PAGES.find((p) => p === parts[1]) : undefined;
+  if (!page) return;
+
+  let target = page;
+  const query = new URLSearchParams(parts[2] || '');
+  const key = ID_PARAMS.find((k) => query.has(k));
+  const id = key ? Number(query.get(key)) : NaN;
+  if (key && Number.isInteger(id) && id > 0) target += `?${key}=${id}`;
+
+  const section = PAGE_SECTIONS.find((name) => `#${name}` === parts[3]);
+  if (section) target += `#${section}`;
+
+  window.location.assign(target);
 }
 
 /* ------------------------------------------------------------------ 1. Menu + messages */
@@ -43,17 +58,28 @@ document.addEventListener('click', (e) => {
   if (close) close.closest('[data-message]').remove();
 });
 
+/*
+ * Make an element without writing HTML: el('button', {type: 'button', class: '...'}, ['Close']).
+ * Text children become text nodes (never parsed as HTML), so app.js has no innerHTML anywhere.
+ */
+function el(tag, attributes = {}, children = []) {
+  const element = document.createElement(tag);
+  for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, value);
+  element.append(...children);
+  return element;
+}
+
 // Show a message at the top of the page, e.g. after an Ajax save
 function showMessage(text) {
   const area = document.querySelector('[data-flash-area]');
   if (!area || !text) return;
-  const box = document.createElement('div');
-  box.className = 'mb-6 flex items-center gap-3 rounded-xl border border-zinc-200 px-4 py-3';
-  box.setAttribute('role', 'status');
-  box.dataset.message = '';
-  box.innerHTML = '<i class="bi bi-check-square-fill text-brand"></i><span class="flex-1"></span>'
-    + '<button type="button" class="text-zinc-400 hover:text-zinc-900" data-dismiss aria-label="Close"><i class="bi bi-x-lg"></i></button>';
-  box.querySelector('span').textContent = text; // textContent: never parsed as HTML
+  const box = el('div', { class: 'mb-6 flex items-center gap-3 rounded-xl border border-zinc-200 px-4 py-3', role: 'status', 'data-message': '' }, [
+    el('i', { class: 'bi bi-check-square-fill text-brand' }),
+    el('span', { class: 'flex-1' }, [String(text)]),
+    el('button', { type: 'button', class: 'text-zinc-400 hover:text-zinc-900', 'data-dismiss': '', 'aria-label': 'Close' }, [
+      el('i', { class: 'bi bi-x-lg' }),
+    ]),
+  ]);
   area.replaceChildren(box);
 }
 
@@ -63,16 +89,17 @@ function showMessage(text) {
   const forms = document.querySelectorAll('form[data-confirm]');
   if (!forms.length) return;
 
-  const dialog = document.createElement('dialog');
-  dialog.className = 'm-auto w-[min(420px,calc(100%-32px))] rounded-2xl border border-zinc-200 bg-white p-6 text-zinc-900 backdrop:bg-black/40';
-  dialog.setAttribute('aria-labelledby', 'confirm-title');
-  dialog.innerHTML = `
-    <h2 id="confirm-title" class="text-lg font-semibold"></h2>
-    <p class="mt-2 text-sm text-zinc-500" data-detail></p>
-    <div class="mt-6 flex justify-end gap-2">
-      <button type="button" class="rounded-xl border border-zinc-200 px-4 py-2 font-medium hover:bg-zinc-50" data-cancel>Keep it</button>
-      <button type="button" class="rounded-xl bg-brand px-4 py-2 font-medium text-white hover:bg-brand-dark" data-ok>Delete</button>
-    </div>`;
+  const dialog = el('dialog', {
+    class: 'm-auto w-[min(420px,calc(100%-32px))] rounded-2xl border border-zinc-200 bg-white p-6 text-zinc-900 backdrop:bg-black/40',
+    'aria-labelledby': 'confirm-title',
+  }, [
+    el('h2', { id: 'confirm-title', class: 'text-lg font-semibold' }),
+    el('p', { class: 'mt-2 text-sm text-zinc-500', 'data-detail': '' }),
+    el('div', { class: 'mt-6 flex justify-end gap-2' }, [
+      el('button', { type: 'button', class: 'rounded-xl border border-zinc-200 px-4 py-2 font-medium hover:bg-zinc-50', 'data-cancel': '' }, ['Keep it']),
+      el('button', { type: 'button', class: 'rounded-xl bg-brand px-4 py-2 font-medium text-white hover:bg-brand-dark', 'data-ok': '' }, ['Delete']),
+    ]),
+  ]);
   document.body.append(dialog);
 
   const title = dialog.querySelector('#confirm-title');
@@ -103,96 +130,69 @@ function showMessage(text) {
 
 let refreshResults = null; // set below on pages with a live search, used after Ajax saves
 
-// The only pages the live search may ask for results (anything else is ignored)
+// The only pages the live search may ask (it is never sent anywhere else)
 const SEARCH_PAGES = ['events.php', 'people.php', 'jobs.php'];
 
 /*
- * Turn the result cards HTML from the server into safe DOM nodes (defence in depth for DOM XSS).
- * Twig has already escaped every value, but this never trusts it: the HTML is parsed in an
- * inert document (nothing runs there), then anything that could run code is removed before
- * the nodes go into the page:
- *   - script, iframe, object, embed, style, link, meta, base, form elements that aren't ours
- *   - every on...="" attribute (onclick, onerror...)
- *   - href / src / action / formaction that isn't a normal link on this site (javascript:, data:...)
+ * How the live search avoids DOM XSS completely:
+ *   - the page already has every card, drawn by Twig (which escapes every value), each with data-id="5"
+ *   - the server answers a search with only the ids of the cards that match, e.g. {"ids": [5, 2, 9]}
+ *   - app.js turns each id into a whole number and shows, hides and orders the existing cards
+ * No HTML comes back from the server and nothing is ever parsed as HTML, so nothing can be injected.
  */
-const BLOCKED_TAGS = 'script, iframe, frame, object, embed, style, link, meta, base, template, noscript';
-const URL_ATTRIBUTES = ['href', 'src', 'action', 'formaction', 'xlink:href'];
-
-// Normal web, email and phone links only: blocks javascript:, data:, vbscript: and the like
-const SAFE_PROTOCOLS = ['http:', 'https:', 'mailto:', 'tel:'];
-
-function isSafeUrl(value) {
-  try {
-    return SAFE_PROTOCOLS.includes(new URL(value, location.href).protocol);
-  } catch {
-    return false;
-  }
-}
-
-function safeFragment(html) {
-  const doc = new DOMParser().parseFromString(String(html ?? ''), 'text/html');
-  doc.querySelectorAll(BLOCKED_TAGS).forEach((el) => el.remove());
-  doc.body.querySelectorAll('*').forEach((el) => {
-    for (const attr of [...el.attributes]) {
-      const name = attr.name.toLowerCase();
-      if (name.startsWith('on') || name === 'srcdoc' || name === 'style' && /expression|url\s*\(/i.test(attr.value)) {
-        el.removeAttribute(attr.name);
-      } else if (URL_ATTRIBUTES.includes(name) && !isSafeUrl(attr.value)) {
-        el.removeAttribute(attr.name);
-      }
-    }
-  });
-  const fragment = document.createDocumentFragment();
-  fragment.append(...doc.body.childNodes);
-  return fragment;
-}
-
 (() => {
   const form = document.querySelector('form[data-live-search]');
   const results = document.querySelector('[data-results]');
   const count = document.querySelector('[data-count]');
   if (!form || !results) return;
 
+  const page = SEARCH_PAGES.find((p) => p === form.getAttribute('action'));
+  const grid = results.querySelector('[data-cards]');
+  const empty = results.querySelector('[data-empty]');
+  if (!page || !grid) return;
+
+  // Show the cards whose ids came back, in that order; hide the rest.
+  // The ids are only used as numbers to look up a position: the elements that get shown and
+  // moved are always the page's own cards, never anything made from the server's answer.
+  function showCards(ids) {
+    const position = new Map();
+    (Array.isArray(ids) ? ids : []).forEach((id, i) => {
+      const n = Number(id);
+      if (Number.isInteger(n) && !position.has(n)) position.set(n, i);
+    });
+    const cards = [...grid.querySelectorAll(':scope > [data-id]')];
+    const placeOf = (card) => position.get(Number(card.dataset.id));
+    cards.forEach((card) => { card.hidden = placeOf(card) === undefined; });
+    const shown = cards.filter((card) => !card.hidden).sort((a, b) => placeOf(a) - placeOf(b));
+    shown.forEach((card) => grid.appendChild(card)); // moves it to the end, so the shown cards end up in search order
+    if (empty) empty.hidden = shown.length > 0;
+  }
+
   /*
    * Stat cards: <div data-status-filter data-field="category">, each card has data-status="value".
-   * Clicking a card puts its value in that form field and searches again.
-   * The card matching the field gets aria-current="true", which turns it red (Tailwind aria-[current=true]).
+   * Clicking a card picks the option with that value in the form's dropdown and searches again
+   * (the option is picked by its position: no text is copied into the form).
+   * The card matching the dropdown gets aria-current="true", which turns it red (Tailwind aria-[current=true]).
    */
   const filter = document.querySelector('[data-status-filter]');
   const field = filter ? form.elements[filter.dataset.field || 'status'] : null;
-
-  // A filter value is only accepted if it's short plain text (letters, numbers, spaces, - _ .)
-  // and, for a dropdown, one of its own options. Anything else clears the filter.
-  function allowedValue(value) {
-    const text = String(value ?? '');
-    if (!/^[\w .-]{0,60}$/.test(text)) return '';
-    if (field instanceof HTMLSelectElement && ![...field.options].some((option) => option.value === text)) return '';
-    return text;
-  }
-
-  // The address of the results page, only if it is one of ours on this site (never another site)
-  function searchUrl(params) {
-    const url = new URL(form.getAttribute('action') || '', location.href);
-    const page = url.pathname.split('/').pop();
-    if (url.origin !== location.origin || !SEARCH_PAGES.includes(page)) return null;
-    url.search = params.toString();
-    return url;
-  }
+  const canFilter = filter && field instanceof HTMLSelectElement;
 
   function highlightCard() {
-    if (!filter || !field) return;
+    if (!canFilter) return;
     filter.querySelectorAll('[data-status]').forEach((card) => {
       if (card.dataset.status === field.value) card.setAttribute('aria-current', 'true');
       else card.removeAttribute('aria-current');
     });
   }
 
-  if (filter && field) {
+  if (canFilter) {
     filter.addEventListener('click', (e) => {
       const card = e.target.closest('[data-status]');
       if (!card) return;
       e.preventDefault();
-      field.value = allowedValue(card.dataset.status);
+      const index = [...field.options].findIndex((option) => option.value === card.dataset.status);
+      field.selectedIndex = Math.max(index, 0); // not one of the options: back to the first ("All")
       run();
     });
   }
@@ -206,33 +206,25 @@ function safeFragment(html) {
     for (const [key, value] of new FormData(form)) {
       if (value !== '') params.append(key, value);
     }
-    // Keep the search in the address bar (so refresh / back keep it). Same page, only the ?query changes.
-    const pageUrl = searchUrl(params);
-    if (!pageUrl) return;
-    if (pageUrl.pathname === location.pathname) history.replaceState(null, '', pageUrl.pathname + pageUrl.search);
-
     params.set('ajax', '1');
-    const ajaxUrl = searchUrl(params);
 
     controller?.abort();
     controller = new AbortController();
     results.classList.add('opacity-50');
     try {
-      const res = await fetch(ajaxUrl, { headers: AJAX_HEADERS, signal: controller.signal, credentials: 'same-origin' });
+      const res = await fetch(`${page}?${params}`, { headers: AJAX_HEADERS, signal: controller.signal, credentials: 'same-origin' });
       if (res.status === 401) { goTo('login.php'); return; } // logged out (e.g. idle too long)
       if (!res.ok || !(res.headers.get('Content-Type') || '').includes('application/json')) throw new Error(res.status);
       const data = await res.json();
-      // Built by Twig (every value escaped), and cleaned again here before it goes into the page
-      results.replaceChildren(safeFragment(data.html));
+      showCards(data.ids);
       if (count) count.textContent = String(data.label ?? '');
-      // Update the numbers on the stat cards (e.g. after "Mark as followed up")
-      if (data.stats) {
-        for (const [key, total] of Object.entries(data.stats)) {
-          const number = document.querySelector(`[data-stat-value="${CSS.escape(key)}"]`);
-          if (number) number.textContent = total;
-        }
+      // Update the numbers on the stat cards (e.g. after "Mark as followed up"): whole numbers only
+      if (data.stats && typeof data.stats === 'object') {
+        filter?.querySelectorAll('[data-stat-value]').forEach((number) => {
+          const total = Number(data.stats[number.dataset.statValue]);
+          if (Number.isInteger(total)) number.textContent = String(total);
+        });
       }
-      hideSaveButtons();
     } catch (err) {
       if (err.name !== 'AbortError' && count) count.textContent = 'Search is unavailable right now. Press Search to try again.';
     } finally {
@@ -249,6 +241,20 @@ function safeFragment(html) {
     timer = setTimeout(run, 300);
   });
 })();
+
+/* After a quick action on a card saved (Ajax): show the card's new state.
+   Both states are already drawn by Twig; only which one is visible changes. */
+function updateCard(form, data) {
+  const card = form.closest('[data-id]');
+  if (!card) return;
+  // People: "Follow up" <-> "Done"
+  if (data.follow_up === 0 || data.follow_up === 1) {
+    card.querySelectorAll('[data-follow]').forEach((el) => { el.hidden = Number(el.dataset.follow) !== data.follow_up; });
+  }
+  // Jobs: the status label follows the dropdown (labels are in the same order as the options)
+  const select = form.querySelector('select[data-autosubmit]');
+  if (select) card.querySelectorAll('[data-status-label]').forEach((el, i) => { el.hidden = i !== select.selectedIndex; });
+}
 
 /* ------------------------------------------------------------------ 4. Forms sent with Ajax */
 
@@ -308,7 +314,8 @@ document.addEventListener('submit', async (e) => {
     if (!data.ok) form.querySelectorAll('[data-captcha]').forEach(newCaptcha);
     if (data.refresh) {
       showMessage(data.message);
-      if (refreshResults) refreshResults(); else location.reload();
+      updateCard(form, data);
+      if (refreshResults) refreshResults(); else window.location.reload();
     }
   } catch (err) {
     showMessage('Saving failed. Check your connection and try again.');
