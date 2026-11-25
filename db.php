@@ -26,9 +26,13 @@ if (!headers_sent()) {
         . "connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'");
     header('X-Content-Type-Options: nosniff');                      // don't guess file types
     header('X-Frame-Options: DENY');                                 // can't be put inside another site (clickjacking)
-    header('Referrer-Policy: strict-origin-when-cross-origin');      // don't leak full URLs to other sites
+    header('Referrer-Policy: same-origin');                          // other sites never see which page you came from
     header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+    // Cross-origin isolation: no other site can open us in a popup and reach into the page (COOP),
+    // load our files into theirs (CORP), and we only load other sites' files without our cookies (COEP)
     header('Cross-Origin-Opener-Policy: same-origin');
+    header('Cross-Origin-Resource-Policy: same-origin');
+    header('Cross-Origin-Embedder-Policy: credentialless');
     header('X-Robots-Tag: noindex, nofollow');                       // a private diary: keep it out of search engines
     if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
         header('Strict-Transport-Security: max-age=31536000');       // HTTPS only (on servers that have it)
@@ -234,4 +238,19 @@ function check_captcha($answer): bool
 function count_users(mysqli $mysqli): int
 {
     return (int) mysqli_fetch_row(mysqli_query($mysqli, "SELECT COUNT(*) FROM users"))[0];
+}
+
+// ---------------------------------------------------------------- 6. Live search
+
+// Run a search and return just the ids of the rows that match, in order (whole numbers only).
+// The live search sends these ids to the browser instead of HTML: the page already has every card
+// (drawn by Twig) and app.js only shows, hides and orders them. No HTML is sent, so none can be injected.
+function matching_ids(mysqli $mysqli, string $sql, array $params): array
+{
+    $stmt = mysqli_prepare($mysqli, $sql);
+    if (count($params) > 0) {
+        mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
+    }
+    mysqli_stmt_execute($stmt);
+    return array_map('intval', array_column(mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC), 'id'));
 }

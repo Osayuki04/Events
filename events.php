@@ -1,6 +1,6 @@
 <?php
 // Events list with multi-criteria search. Logic only - the HTML is in templates/events.twig
-// events.php?ajax=1&...  returns just the cards as JSON (live search, see app.js)
+// events.php?ajax=1&...  returns the ids of the matching events as JSON (live search, see app.js)
 include("db.php");
 require_login(); // only for logged-in users: otherwise sent to login.php
 
@@ -79,27 +79,23 @@ $orders = [
     'title'  => "e.title ASC",
 ];
 
-$sql = "SELECT e.*, c.name AS category,
-               (SELECT COUNT(*) FROM people p WHERE p.event_id = e.id) AS people_count,
-               (SELECT COUNT(*) FROM jobs j WHERE j.event_id = e.id) AS job_count
-        FROM events e
-        JOIN categories c ON c.id = e.category_id
-        WHERE $where
-        ORDER BY " . $orders[$sort];
+$order = "ORDER BY " . $orders[$sort];
 
-// Prepared statement: the ? are filled in by MySQL, so input can't change the SQL
-$stmt = mysqli_prepare($mysqli, $sql);
-if (count($params) > 0) {
-    mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
-}
-mysqli_stmt_execute($stmt);
-$events = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
-$label = count($events) . (count($events) == 1 ? ' event' : ' events');
+// The ids of the events that match, in the chosen order (prepared statement: the ? are filled in
+// by MySQL, so input can't change the SQL). The live search only needs these.
+$ids = matching_ids($mysqli, "SELECT e.id FROM events e JOIN categories c ON c.id = e.category_id WHERE $where $order", $params);
+$label = count($ids) . (count($ids) == 1 ? ' event' : ' events');
 
-// Ajax (live search): send only the cards
+// Ajax (live search): only the matching ids (numbers, in order) and the label
 if (is_ajax()) {
-    send_json(['label' => $label, 'html' => $twig->render('_event_cards.twig', ['events' => $events])]);
+    send_json(['label' => $label, 'ids' => $ids]);
 }
+
+// The page has every event (in the chosen order); the ones that don't match are hidden (app.js shows them again)
+$events = mysqli_fetch_all(mysqli_query($mysqli, "SELECT e.*, c.name AS category,
+                                                         (SELECT COUNT(*) FROM people p WHERE p.event_id = e.id) AS people_count,
+                                                         (SELECT COUNT(*) FROM jobs j WHERE j.event_id = e.id) AS job_count
+                                                  FROM events e JOIN categories c ON c.id = e.category_id $order"), MYSQLI_ASSOC);
 
 // ---- Stat cards: "All events" + one per type you've been to (up to 5) ----
 $all_events = (int) mysqli_fetch_assoc(mysqli_query($mysqli, "SELECT COUNT(*) AS total FROM events"))['total'];
@@ -110,6 +106,7 @@ $type_stats = mysqli_fetch_all(mysqli_query($mysqli, "SELECT c.id, c.name, COUNT
 render('events.twig', [
     'page'       => 'events',
     'events'     => $events,
+    'visible'    => array_flip($ids),
     'label'      => $label,
     'categories' => array_column($categories, 'name', 'id'),
     'cities'     => array_column($cities, 'city', 'city'),

@@ -1,6 +1,6 @@
 <?php
 // Every saved job. Logic only - the HTML is in templates/jobs.twig
-// jobs.php?ajax=1&...  returns just the cards as JSON (live search, see app.js)
+// jobs.php?ajax=1&...  returns the ids of the matching jobs as JSON (live search, see app.js)
 include("db.php");
 require_login(); // only for logged-in users: otherwise sent to login.php
 
@@ -50,18 +50,11 @@ if ($status != '') {
     $params[] = $status;
 }
 
-$sql = "SELECT j.*, e.title AS event_title, e.event_date
-        FROM jobs j
-        JOIN events e ON e.id = j.event_id
-        WHERE $where
-        ORDER BY FIELD(j.status, 'Offer', 'Interview', 'Applied', 'Saved', 'Rejected'), j.created_at DESC";
-$stmt = mysqli_prepare($mysqli, $sql);
-if (count($params) > 0) {
-    mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
-}
-mysqli_stmt_execute($stmt);
-$jobs = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
-$label = count($jobs) . (count($jobs) == 1 ? ' job' : ' jobs');
+$order = "ORDER BY FIELD(j.status, 'Offer', 'Interview', 'Applied', 'Saved', 'Rejected'), j.created_at DESC";
+
+// The ids of the jobs that match the search (the live search only needs these)
+$ids = matching_ids($mysqli, "SELECT j.id FROM jobs j JOIN events e ON e.id = j.event_id WHERE $where $order", $params);
+$label = count($ids) . (count($ids) == 1 ? ' job' : ' jobs');
 
 // Number of jobs at each status (for the stat cards). '' = all jobs.
 $stats = array_fill_keys($statuses, 0);
@@ -71,11 +64,14 @@ while ($a_row = mysqli_fetch_assoc($results)) {
 }
 $stats = ['' => array_sum($stats)] + $stats;
 
-$data = ['jobs' => $jobs, 'statuses' => $statuses, 'status' => $status, 'q' => $q];
-
-// Ajax (live search): send only the cards, plus the numbers for the stat cards
+// Ajax (live search): only the matching ids (numbers), the label and the numbers for the stat cards
 if (is_ajax()) {
-    send_json(['label' => $label, 'html' => $twig->render('_job_cards.twig', $data), 'stats' => $stats]);
+    send_json(['label' => $label, 'ids' => $ids, 'stats' => $stats]);
 }
+
+// The page has every job; the ones that don't match the search are hidden (app.js shows them again)
+$jobs = mysqli_fetch_all(mysqli_query($mysqli, "SELECT j.*, e.title AS event_title, e.event_date
+                                                FROM jobs j JOIN events e ON e.id = j.event_id $order"), MYSQLI_ASSOC);
+$data = ['jobs' => $jobs, 'visible' => array_flip($ids), 'statuses' => $statuses, 'status' => $status, 'q' => $q];
 
 render('jobs.twig', $data + ['page' => 'jobs', 'label' => $label, 'stats' => $stats]);
