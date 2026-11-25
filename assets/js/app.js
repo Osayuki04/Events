@@ -13,6 +13,20 @@
 
 const AJAX_HEADERS = { 'X-Requested-With': 'fetch' };
 
+// Go to a page the server told us about (after saving, or a picked suggestion).
+// Only a page of this site like "event.php?id=5" is allowed, never another site or a javascript: link.
+function goTo(address) {
+  try {
+    const url = new URL(String(address), location.href);
+    const page = url.pathname.split('/').pop();
+    if (url.origin === location.origin && /^[a-z_]+\.php$/.test(page)) {
+      location.assign(url.pathname + url.search + url.hash);
+    }
+  } catch {
+    // not a valid address: stay on this page
+  }
+}
+
 /* ------------------------------------------------------------------ 1. Menu + messages */
 
 document.querySelectorAll('[data-menu-toggle]').forEach((button) => {
@@ -89,6 +103,50 @@ function showMessage(text) {
 
 let refreshResults = null; // set below on pages with a live search, used after Ajax saves
 
+// The only pages the live search may ask for results (anything else is ignored)
+const SEARCH_PAGES = ['events.php', 'people.php', 'jobs.php'];
+
+/*
+ * Turn the result cards HTML from the server into safe DOM nodes (defence in depth for DOM XSS).
+ * Twig has already escaped every value, but this never trusts it: the HTML is parsed in an
+ * inert document (nothing runs there), then anything that could run code is removed before
+ * the nodes go into the page:
+ *   - script, iframe, object, embed, style, link, meta, base, form elements that aren't ours
+ *   - every on...="" attribute (onclick, onerror...)
+ *   - href / src / action / formaction that isn't a normal link on this site (javascript:, data:...)
+ */
+const BLOCKED_TAGS = 'script, iframe, frame, object, embed, style, link, meta, base, template, noscript';
+const URL_ATTRIBUTES = ['href', 'src', 'action', 'formaction', 'xlink:href'];
+
+// Normal web, email and phone links only: blocks javascript:, data:, vbscript: and the like
+const SAFE_PROTOCOLS = ['http:', 'https:', 'mailto:', 'tel:'];
+
+function isSafeUrl(value) {
+  try {
+    return SAFE_PROTOCOLS.includes(new URL(value, location.href).protocol);
+  } catch {
+    return false;
+  }
+}
+
+function safeFragment(html) {
+  const doc = new DOMParser().parseFromString(String(html ?? ''), 'text/html');
+  doc.querySelectorAll(BLOCKED_TAGS).forEach((el) => el.remove());
+  doc.body.querySelectorAll('*').forEach((el) => {
+    for (const attr of [...el.attributes]) {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith('on') || name === 'srcdoc' || name === 'style' && /expression|url\s*\(/i.test(attr.value)) {
+        el.removeAttribute(attr.name);
+      } else if (URL_ATTRIBUTES.includes(name) && !isSafeUrl(attr.value)) {
+        el.removeAttribute(attr.name);
+      }
+    }
+  });
+  const fragment = document.createDocumentFragment();
+  fragment.append(...doc.body.childNodes);
+  return fragment;
+}
+
 (() => {
   const form = document.querySelector('form[data-live-search]');
   const results = document.querySelector('[data-results]');
@@ -103,6 +161,24 @@ let refreshResults = null; // set below on pages with a live search, used after 
   const filter = document.querySelector('[data-status-filter]');
   const field = filter ? form.elements[filter.dataset.field || 'status'] : null;
 
+  // A filter value is only accepted if it's short plain text (letters, numbers, spaces, - _ .)
+  // and, for a dropdown, one of its own options. Anything else clears the filter.
+  function allowedValue(value) {
+    const text = String(value ?? '');
+    if (!/^[\w .-]{0,60}$/.test(text)) return '';
+    if (field instanceof HTMLSelectElement && ![...field.options].some((option) => option.value === text)) return '';
+    return text;
+  }
+
+  // The address of the results page, only if it is one of ours on this site (never another site)
+  function searchUrl(params) {
+    const url = new URL(form.getAttribute('action') || '', location.href);
+    const page = url.pathname.split('/').pop();
+    if (url.origin !== location.origin || !SEARCH_PAGES.includes(page)) return null;
+    url.search = params.toString();
+    return url;
+  }
+
   function highlightCard() {
     if (!filter || !field) return;
     filter.querySelectorAll('[data-status]').forEach((card) => {
@@ -116,7 +192,7 @@ let refreshResults = null; // set below on pages with a live search, used after 
       const card = e.target.closest('[data-status]');
       if (!card) return;
       e.preventDefault();
-      field.value = card.dataset.status;
+      field.value = allowedValue(card.dataset.status);
       run();
     });
   }
@@ -130,19 +206,25 @@ let refreshResults = null; // set below on pages with a live search, used after 
     for (const [key, value] of new FormData(form)) {
       if (value !== '') params.append(key, value);
     }
-    history.replaceState(null, '', `${location.pathname}${params.toString() ? `?${params}` : ''}`);
+    // Keep the search in the address bar (so refresh / back keep it). Same page, only the ?query changes.
+    const pageUrl = searchUrl(params);
+    if (!pageUrl) return;
+    if (pageUrl.pathname === location.pathname) history.replaceState(null, '', pageUrl.pathname + pageUrl.search);
+
     params.set('ajax', '1');
+    const ajaxUrl = searchUrl(params);
 
     controller?.abort();
     controller = new AbortController();
     results.classList.add('opacity-50');
     try {
-      const res = await fetch(`${form.getAttribute('action')}?${params}`, { headers: AJAX_HEADERS, signal: controller.signal });
-      if (res.status === 401) { location.href = 'login.php'; return; } // logged out (e.g. idle too long)
-      if (!res.ok) throw new Error(res.status);
+      const res = await fetch(ajaxUrl, { headers: AJAX_HEADERS, signal: controller.signal, credentials: 'same-origin' });
+      if (res.status === 401) { goTo('login.php'); return; } // logged out (e.g. idle too long)
+      if (!res.ok || !(res.headers.get('Content-Type') || '').includes('application/json')) throw new Error(res.status);
       const data = await res.json();
-      results.innerHTML = data.html;   // built by Twig, which escapes every value
-      if (count) count.textContent = data.label;
+      // Built by Twig (every value escaped), and cleaned again here before it goes into the page
+      results.replaceChildren(safeFragment(data.html));
+      if (count) count.textContent = String(data.label ?? '');
       // Update the numbers on the stat cards (e.g. after "Mark as followed up")
       if (data.stats) {
         for (const [key, total] of Object.entries(data.stats)) {
@@ -217,7 +299,7 @@ document.addEventListener('submit', async (e) => {
     const res = await fetch(form.getAttribute('action'), { method: 'POST', body: new FormData(form), headers: AJAX_HEADERS });
     const data = await res.json();
     if (data.redirect) {
-      location.href = data.redirect;
+      goTo(data.redirect);
       return;
     }
     if (data.errors) showErrors(form, data.errors);
@@ -326,7 +408,7 @@ document.querySelectorAll('input[data-suggest]').forEach((input) => {
   function choose(i) {
     const item = items[i];
     if (!item) return;
-    if (item.url) { location.href = item.url; return; }
+    if (item.url) { goTo(item.url); return; }
     input.value = item.value;
     // Form filling assistance: fill in the other fields this suggestion knows about (only if they're empty)
     if (item.fill && input.form) {
