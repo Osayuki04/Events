@@ -297,6 +297,27 @@ check("CSP has no 'unsafe-eval' or inline scripts", !str_contains($csp, 'unsafe-
 check("CSP stops the site being framed (clickjacking)", str_contains($csp, "frame-ancestors 'none'"));
 check('X-Frame-Options is DENY', ($h['x-frame-options'][0] ?? '') === 'DENY');
 check('X-Content-Type-Options is nosniff', ($h['x-content-type-options'][0] ?? '') === 'nosniff');
+check('Referrer-Policy is same-origin', ($h['referrer-policy'][0] ?? '') === 'same-origin');
+check('Cross-origin isolation: COOP + CORP + COEP are all set', ($h['cross-origin-opener-policy'][0] ?? '') === 'same-origin'
+    && ($h['cross-origin-resource-policy'][0] ?? '') === 'same-origin' && !empty($h['cross-origin-embedder-policy']));
+
+// Every kind of response has the headers, each sent once (a header sent twice can be read as invalid):
+// a page, a PHP 404, static files, and Apache's own 403 / 404 error pages
+foreach (['index.php', 'event.php?id=999999', 'assets/js/app.js', 'robots.txt', 'assets/img/favicon.svg',
+          'templates/base.twig', 'missing-file.txt', 'missing-page.php'] as $path) {
+    [$status, $h] = request('GET', $path, [], false);
+    $problems = [];
+    foreach (['x-content-type-options', 'x-frame-options', 'referrer-policy', 'cross-origin-resource-policy'] as $name) {
+        $count = count($h[$name] ?? []);
+        if ($count !== 1) {
+            $problems[] = "$name x$count";
+        }
+    }
+    if (count($h['content-security-policy'] ?? []) > 1) {
+        $problems[] = 'content-security-policy sent twice';
+    }
+    check("$path ($status) sends each security header once", !$problems, implode(', ', $problems));
+}
 
 // The session cookie: fresh request without our cookie jar
 $ch = curl_init($base . 'index.php');
@@ -433,6 +454,17 @@ foreach ($xss as $i => $payload) {
         }
         check("suggest.php ($field), attack $i", leaks($body) === '' && json_decode($body) !== null, leaks($body));
     }
+}
+
+// The live search answers with ids (whole numbers) only: no HTML ever reaches the browser to be inserted
+foreach (['events.php', 'people.php', 'jobs.php'] as $page) {
+    $body = request('GET', "$page?ajax=1&q=" . urlencode($xss[0]))[2];
+    $json = json_decode($body, true) ?? [];
+    $ids = $json['ids'] ?? null;
+    check("$page live search sends only ids (no HTML)", !isset($json['html']) && !str_contains($body, '<'), substr($body, 0, 80));
+    check("$page live search ids are all whole numbers", is_array($ids) && $ids === array_filter($ids, 'is_int'));
+    $all = json_decode(request('GET', "$page?ajax=1")[2], true)['ids'] ?? [];
+    check("$page live search with no filters lists every card", count($all) > 0 && count($all) === count(array_unique($all)));
 }
 
 // Every filter in the address bar
