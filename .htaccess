@@ -18,11 +18,28 @@ DirectoryIndex index.php
     RedirectMatch 403 /(sql|vendor|templates|tests)/
 </IfModule>
 
-# The security headers for pages are sent by PHP (top of db.php). These cover the static files.
+# Security headers on EVERY response: pages, files (app.js, robots.txt...) and Apache's own error pages.
+# PHP sends the same ones (top of db.php) so pages are still protected on a server without mod_headers.
+# "Header set" replaces PHP's copy, so each header is only sent once.
 <IfModule mod_headers.c>
     Header unset X-Powered-By
+    Header always unset X-Powered-By
+
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    Header set Referrer-Policy "same-origin"
+    Header set Cross-Origin-Opener-Policy "same-origin"
+    Header set Cross-Origin-Resource-Policy "same-origin"
+
+    # Error pages made by Apache itself (403 for the private folders, 404 for missing files) skip the
+    # normal headers above, so they get them here. Not for PHP pages, which already have them.
+    Header always set X-Content-Type-Options "nosniff" "expr=%{REQUEST_STATUS} -ge 400 && (%{HANDLER} != 'application/x-httpd-php' || ! -f %{REQUEST_FILENAME})"
+    Header always set X-Frame-Options "DENY" "expr=%{REQUEST_STATUS} -ge 400 && (%{HANDLER} != 'application/x-httpd-php' || ! -f %{REQUEST_FILENAME})"
+    Header always set Referrer-Policy "same-origin" "expr=%{REQUEST_STATUS} -ge 400 && (%{HANDLER} != 'application/x-httpd-php' || ! -f %{REQUEST_FILENAME})"
+    Header always set Cross-Origin-Resource-Policy "same-origin" "expr=%{REQUEST_STATUS} -ge 400 && (%{HANDLER} != 'application/x-httpd-php' || ! -f %{REQUEST_FILENAME})"
+    Header always set Content-Security-Policy "default-src 'none'; frame-ancestors 'none'" "expr=%{REQUEST_STATUS} -ge 400 && (%{HANDLER} != 'application/x-httpd-php' || ! -f %{REQUEST_FILENAME})"
+
     <FilesMatch "\.(css|js|woff2?|svg)$">
-        Header set X-Content-Type-Options "nosniff"
         Header set Cache-Control "public, max-age=604800"
     </FilesMatch>
 </IfModule>
