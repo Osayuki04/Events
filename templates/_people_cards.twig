@@ -1,15 +1,17 @@
-{# The person cards on people.php. Also sent on its own by people.php?ajax=1 (live search).
-   Variables: people, q, follow_up #}
+{# The person cards on people.php. Everyone is here; the people that don't match the search are hidden.
+   The live search (app.js) gets only the ids of the matching people and shows, hides and orders these cards.
+   Both follow-up states are drawn (data-follow="1" / "0"), app.js shows the right one after the button is used.
+   Variables: people, visible (id => position of the people that match), q, follow_up #}
 {% import 'macros.twig' as ui %}
 
-{% if people %}
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" data-cards>
         {% for person in people %}
             {# Same layout as the "Latest event" card: big avatar in the middle, buttons side by side at the bottom #}
-            <article class="flex flex-col rounded-2xl border border-zinc-200 p-5">
+            <article class="flex flex-col rounded-2xl border border-zinc-200 p-5" data-id="{{ person.id }}" {{ visible[person.id] is defined ? '' : 'hidden' }}>
                 <div class="flex items-center justify-between gap-2">
                     <span class="text-[13px] text-zinc-500">{{ person.event_date|date('j M Y') }}</span>
-                    {{ ui.follow_badge(person.follow_up) }}
+                    <span data-follow="1" {{ person.follow_up ? '' : 'hidden' }}>{{ ui.follow_badge(1) }}</span>
+                    <span data-follow="0" {{ person.follow_up ? 'hidden' }}>{{ ui.follow_badge(0) }}</span>
                 </div>
 
                 <div class="flex flex-1 flex-col items-center pt-2 text-center">
@@ -36,17 +38,17 @@
                         <input type="hidden" name="q" value="{{ q }}">
                         <input type="hidden" name="follow_up" value="{{ follow_up }}">
                         <button class="w-full rounded-xl bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark" type="submit">
-                            {{ person.follow_up ? 'Mark as followed up' : 'Follow up again' }}
+                            <span data-follow="1" {{ person.follow_up ? '' : 'hidden' }}>Mark as followed up</span>
+                            <span data-follow="0" {{ person.follow_up ? 'hidden' }}>Follow up again</span>
                         </button>
                     </form>
                     <a class="rounded-xl border border-brand px-3 py-2.5 text-center text-sm font-medium text-brand transition-colors hover:bg-brand hover:text-white" href="person_form.php?id={{ person.id }}">Edit</a>
                 </div>
             </article>
         {% endfor %}
-    </div>
-{% else %}
-    <div class="rounded-2xl border border-zinc-200 px-4 py-14 text-center text-zinc-500">
-        <p class="font-semibold text-zinc-900">{{ q or follow_up != '' ? 'Nobody matches that search' : 'No people yet' }}</p>
+</div>
+
+<div class="rounded-2xl border border-zinc-200 px-4 py-14 text-center text-zinc-500" data-empty {{ visible ? 'hidden' }}>
+        <p class="font-semibold text-zinc-900">{{ people ? 'Nobody matches that search' : 'No people yet' }}</p>
         <p class="text-[13px]">Open an event and use the + next to “People you met” to save someone.</p>
-    </div>
-{% endif %}
+</div>

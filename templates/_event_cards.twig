@@ -1,12 +1,12 @@
-{# The event cards on events.php. Also sent on its own by events.php?ajax=1 (live search).
-   Variables: events #}
+{# The event cards on events.php. Every event is here; the ones that don't match the search are hidden.
+   The live search (app.js) gets only the ids of the matching events and shows, hides and orders these cards.
+   Variables: events, visible (id => position of the events that match) #}
 {% import 'macros.twig' as ui %}
 
-{% if events %}
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" data-cards>
         {% for event in events %}
             {# Same layout as the "Latest event" card: big red date block in the middle, buttons side by side at the bottom #}
-            <article class="flex flex-col rounded-2xl border border-zinc-200 p-5">
+            <article class="flex flex-col rounded-2xl border border-zinc-200 p-5" data-id="{{ event.id }}" {{ visible[event.id] is defined ? '' : 'hidden' }}>
                 <div class="flex items-center justify-between gap-2">
                     <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-medium">{{ event.category }}</span>
                     {% if event.rating %}
@@ -36,10 +36,9 @@
                 </div>
             </article>
         {% endfor %}
-    </div>
-{% else %}
-    <div class="rounded-2xl border border-zinc-200 px-4 py-14 text-center text-zinc-500">
-        <p class="font-semibold text-zinc-900">No events match those filters</p>
+</div>
+
+<div class="rounded-2xl border border-zinc-200 px-4 py-14 text-center text-zinc-500" data-empty {{ visible ? 'hidden' }}>
+        <p class="font-semibold text-zinc-900">{{ events ? 'No events match those filters' : 'No events yet' }}</p>
         <p class="text-[13px]">Try a wider date range, a lower rating, or clear the filters to see everything.</p>
-    </div>
-{% endif %}
+</div>
