@@ -18,9 +18,11 @@ if (!headers_sent()) {
     header_remove('X-Powered-By');
     // Content-Security-Policy: the browser only runs scripts, styles, fonts and images from the places
     // listed here, so a script injected into the page (XSS) is blocked even if one ever got through.
+    // No 'unsafe-inline' anywhere: the only scripts are this site's own files, and the only styles are
+    // CSS files (Tailwind is built into assets/css/app.css, the icons and font come from their CDNs).
     header("Content-Security-Policy: default-src 'self'; "
-        . "script-src 'self' https://cdn.jsdelivr.net; "
-        . "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+        . "script-src 'self'; "
+        . "style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
         . "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
         . "img-src 'self' data: https://api.dicebear.com; "
         . "connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'");
@@ -172,16 +174,31 @@ function send_errors(array $errors): void
 // Log out after 30 minutes without doing anything
 const IDLE_TIMEOUT = 30 * 60;
 
-// Put at the top of every page that needs a login (straight after include("db.php")).
+// Put at the top of every page that needs a login (straight after include("db.php")):
+//     $user_id = require_login();
 // Not logged in (or idle too long) -> sent to the login page, which brings you back afterwards.
-function require_login(): void
+// Returns the id of the logged-in user. Every query on events, people and jobs uses it, so each
+// user only ever sees and changes their own diary.
+function require_login(): int
 {
+    global $mysqli;
     $logged_in = !empty($_SESSION['user_id']);
 
     if ($logged_in && time() - ($_SESSION['last_seen'] ?? 0) > IDLE_TIMEOUT) {
         log_out();
         $_SESSION['message'] = 'You were logged out after 30 minutes without using the site.';
         $logged_in = false;
+    }
+
+    // The account must still exist (e.g. it was deleted while this session was open)
+    if ($logged_in) {
+        $stmt = mysqli_prepare($mysqli, "SELECT id FROM users WHERE id = ?");
+        mysqli_stmt_bind_param($stmt, "i", $_SESSION['user_id']);
+        mysqli_stmt_execute($stmt);
+        if (!mysqli_fetch_assoc(mysqli_stmt_get_result($stmt))) {
+            log_out();
+            $logged_in = false;
+        }
     }
 
     if (!$logged_in) {
@@ -196,6 +213,7 @@ function require_login(): void
     }
 
     $_SESSION['last_seen'] = time();
+    return (int) $_SESSION['user_id'];
 }
 
 // Logged in: a new session id (stops session fixation) and a new form token
@@ -240,7 +258,40 @@ function count_users(mysqli $mysqli): int
     return (int) mysqli_fetch_row(mysqli_query($mysqli, "SELECT COUNT(*) FROM users"))[0];
 }
 
-// ---------------------------------------------------------------- 6. Live search
+// ---------------------------------------------------------------- 6. Queries
+
+// Run a prepared statement with these values for the ? placeholders and return all the rows.
+// Used for every query that includes the logged-in user's id (or anything else from outside).
+function fetch_rows(string $sql, array $params = []): array
+{
+    global $mysqli;
+    $stmt = mysqli_prepare($mysqli, $sql);
+    if (count($params) > 0) {
+        mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
+    }
+    mysqli_stmt_execute($stmt);
+    return mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
+}
+
+// The same, for a query that returns one row (null if there is none)
+function fetch_row(string $sql, array $params = []): ?array
+{
+    return fetch_rows($sql, $params)[0] ?? null;
+}
+
+// Run an INSERT / UPDATE / DELETE with these values for the ? placeholders; returns how many rows changed
+function run_query(string $sql, array $params = []): int
+{
+    global $mysqli;
+    $stmt = mysqli_prepare($mysqli, $sql);
+    if (count($params) > 0) {
+        mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
+    }
+    mysqli_stmt_execute($stmt);
+    return mysqli_stmt_affected_rows($stmt);
+}
+
+// ---------------------------------------------------------------- 7. Live search
 
 // Run a search and return just the ids of the rows that match, in order (whole numbers only).
 // The live search sends these ids to the browser instead of HTML: the page already has every card
@@ -253,4 +304,17 @@ function matching_ids(mysqli $mysqli, string $sql, array $params): array
     }
     mysqli_stmt_execute($stmt);
     return array_map('intval', array_column(mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC), 'id'));
+}
+
+// Deleted with the bin button on a card in a list (the form sends from=list): stay on that list.
+// Ajax gets "refresh" so app.js hides the card and updates the numbers; without JavaScript the list reloads.
+// $page is always a fixed page name from the code, never from the request.
+function deleted_from_list(string $page, string $message): never
+{
+    if (is_ajax()) {
+        send_json(['ok' => true, 'refresh' => true, 'message' => $message]);
+    }
+    $_SESSION['message'] = $message;
+    header("Location: $page");
+    exit;
 }
