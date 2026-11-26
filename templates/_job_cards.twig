@@ -1,6 +1,6 @@
 {# The job cards on jobs.php. Every job is here; the ones that don't match the search are hidden.
-   The live search (app.js) gets only the ids of the matching jobs and shows, hides and orders these cards.
-   Every status label is drawn (only the job's own is shown), app.js shows the right one after the dropdown changes.
+   The live search (search_box macro) gets only the ids of the matching jobs and shows, hides and orders these cards.
+   Every status label is drawn (only the job's own is shown), the script in base.twig shows the right one after the dropdown changes.
    Variables: jobs, visible (id => position of the jobs that match), statuses, status, q #}
 {% import 'macros.twig' as ui %}
 
@@ -28,7 +28,7 @@
                 </div>
 
                 <div class="flex items-center gap-2 border-t border-zinc-200 pt-3">
-                    {# Changing the dropdown saves straight away, in the background (Ajax, see app.js) #}
+                    {# Changing the dropdown saves straight away, in the background (Ajax, see base.twig) #}
                     <form method="post" action="jobs.php" class="m-0 mr-auto flex items-center gap-2" data-ajax>
                         <input type="hidden" name="token" value="{{ token }}">
                         <input type="hidden" name="id" value="{{ job.id }}">

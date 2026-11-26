@@ -10,7 +10,7 @@
         <p class="mt-2 text-zinc-500">Roles you heard about at your events, and how far each application has got.</p>
     </div>
 
-    {# Stat cards. Clicking one filters the jobs (Ajax, see app.js). The selected card turns red. #}
+    {# Stat cards. Clicking one filters the jobs (Ajax, see the search_box macro). The selected card turns red. #}
     {% set notes = {'': 'everything you saved', Saved: 'not applied yet', Applied: 'waiting to hear back',
                     Interview: 'interviews to prepare for', Offer: 'offers received', Rejected: "didn't go ahead"} %}
     <div class="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6" data-status-filter data-field="status">
@@ -20,9 +20,9 @@
         {% endfor %}
     </div>
 
-    {# Search: results update as you type, with suggestions (Ajax, see app.js) #}
+    {# Search: results update as you type, with suggestions (Ajax, see the search_box macro) #}
     <form method="get" action="jobs.php" class="mb-6 flex gap-3 rounded-2xl border border-zinc-200 p-5" data-live-search role="search">
-        {# The stat cards above choose this (hidden) dropdown: app.js picks an option, it never copies text in #}
+        {# The stat cards above choose this (hidden) dropdown: the live search script picks an option, it never copies text in #}
         <select name="status" hidden aria-hidden="true" tabindex="-1">
             <option value="">All</option>
             {% for s in statuses %}<option {{ s == status ? 'selected' }}>{{ s }}</option>{% endfor %}

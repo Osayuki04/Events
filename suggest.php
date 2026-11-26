@@ -1,5 +1,5 @@
 <?php
-// Ajax: suggestions while typing (autocomplete + form filling assistance). Used by assets/js/app.js
+// Ajax: suggestions while typing (autocomplete + form filling assistance). Used by the autocomplete script at the bottom of templates/base.twig
 //
 //   suggest.php?field=events&q=sum   ->  {"title": "...", "items": [{"value": "...", "detail": "...", "fill": {...}, "url": "..."}]}
 //

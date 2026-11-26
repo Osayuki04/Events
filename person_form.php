@@ -1,7 +1,7 @@
 <?php
 // Add someone you met (person_form.php?event_id=3) or edit/remove them (person_form.php?id=7).
 // Logic only - the HTML is in templates/person_form.twig
-// The form is sent with Ajax: errors come back as JSON and show under each field (see app.js).
+// The form is sent with Ajax: errors come back as JSON and show under each field (see the script at the bottom of templates/base.twig).
 include("db.php");
 $user_id = require_login(); // only for logged-in users (else sent to login.php); every query below only uses their records
 

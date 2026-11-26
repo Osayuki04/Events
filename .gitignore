@@ -1,4 +1,4 @@
-# Database files (schema + data) - kept on this computer only
+# Database copy (schema + data) - kept on this computer only
 /sql/
 
 # Composer libraries (run "composer install" to get them back)
@@ -9,14 +9,4 @@
 Thumbs.db
 .vscode/
 .idea/
-
-# Test output
-/test-results/
-/.playwright-cli/
 *.log
-
-# Personal notes
-/commit-plan.md
-
-# Node (Tailwind build tool)
-/node_modules/

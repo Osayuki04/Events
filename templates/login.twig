@@ -12,7 +12,7 @@
             <p class="mt-2 text-zinc-500">Welcome back. Log in to see your events, the people you met and the jobs you saved.</p>
         </div>
 
-        {# data-ajax: sent in the background by app.js; a wrong try shows the errors and a new captcha #}
+        {# data-ajax: sent in the background by the script in base.twig; a wrong try shows the errors and a new captcha #}
         <form method="post" action="login.php?next={{ next|url_encode }}" class="grid gap-4 rounded-2xl border border-zinc-200 p-6" novalidate data-ajax>
             <input type="hidden" name="token" value="{{ token }}">
 

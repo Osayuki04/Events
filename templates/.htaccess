@@ -1,2 +1,0 @@
-# Templates are only read by PHP (Twig), never served directly
-Require all denied

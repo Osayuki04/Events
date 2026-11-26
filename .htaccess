@@ -3,7 +3,7 @@ Options -Indexes
 DirectoryIndex index.php
 
 # Hide repository and tooling files
-<FilesMatch "^(\.git.*|README\.md|commit-plan\.md|composer\.(json|lock))$">
+<FilesMatch "^(\.git.*|README\.md|composer\.(json|lock))$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
@@ -15,10 +15,10 @@ DirectoryIndex index.php
 
 # Folders that are only used by PHP, phpMyAdmin or the command line, never opened in a browser
 <IfModule mod_alias.c>
-    RedirectMatch 403 /(sql|vendor|templates|tests)/
+    RedirectMatch 403 /(sql|vendor|templates)/
 </IfModule>
 
-# Security headers on EVERY response: pages, files (app.js, robots.txt...) and Apache's own error pages.
+# Security headers on EVERY response: the PHP pages and Apache's own error pages.
 # PHP sends the same ones (top of db.php) so pages are still protected on a server without mod_headers.
 # "Header set" replaces PHP's copy, so each header is only sent once.
 <IfModule mod_headers.c>
@@ -38,8 +38,4 @@ DirectoryIndex index.php
     Header always set Referrer-Policy "same-origin" "expr=%{REQUEST_STATUS} -ge 400 && (%{HANDLER} != 'application/x-httpd-php' || ! -f %{REQUEST_FILENAME})"
     Header always set Cross-Origin-Resource-Policy "same-origin" "expr=%{REQUEST_STATUS} -ge 400 && (%{HANDLER} != 'application/x-httpd-php' || ! -f %{REQUEST_FILENAME})"
     Header always set Content-Security-Policy "default-src 'none'; frame-ancestors 'none'" "expr=%{REQUEST_STATUS} -ge 400 && (%{HANDLER} != 'application/x-httpd-php' || ! -f %{REQUEST_FILENAME})"
-
-    <FilesMatch "\.(css|js|woff2?|svg)$">
-        Header set Cache-Control "public, max-age=604800"
-    </FilesMatch>
 </IfModule>

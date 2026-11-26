@@ -14,15 +14,20 @@ ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 
 // Security headers, sent with every page
+// A new random "nonce" for every page. The site's own JavaScript is written inside the templates as
+// <script nonce="..."> blocks; the browser only runs inline scripts that carry this exact value, so a
+// script injected into the page (XSS) can't run, because the attacker can't know the nonce.
+$csp_nonce = base64_encode(random_bytes(16));
+
 if (!headers_sent()) {
     header_remove('X-Powered-By');
     // Content-Security-Policy: the browser only runs scripts, styles, fonts and images from the places
     // listed here, so a script injected into the page (XSS) is blocked even if one ever got through.
-    // No 'unsafe-inline' anywhere: the only scripts are this site's own files, and the only styles are
-    // CSS files (Tailwind is built into assets/css/app.css, the icons and font come from their CDNs).
+    //   scripts: this site's inline scripts with the nonce, and Tailwind from jsDelivr (no 'unsafe-inline', no eval)
+    //   styles:  'unsafe-inline' is needed because the Tailwind CDN script creates its CSS in the browser
     header("Content-Security-Policy: default-src 'self'; "
-        . "script-src 'self'; "
-        . "style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+        . "script-src 'self' 'nonce-$csp_nonce' https://cdn.jsdelivr.net; "
+        . "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
         . "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
         . "img-src 'self' data: https://api.dicebear.com; "
         . "connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'");
@@ -47,12 +52,11 @@ if (!headers_sent()) {
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 try {
-    // On XAMPP (localhost) use the local database, on mi-linux use the university one.
-    if (in_array($_SERVER['SERVER_NAME'] ?? 'localhost', ['localhost', '127.0.0.1'])) {
-        $mysqli = mysqli_connect("localhost", "root", "", "event_diary");
-    } else {
-        $mysqli = mysqli_connect("localhost", "2463526", "455qm2", "db2463526");
-    }
+    // Always the university database on mi-linux (there is no local copy).
+    // On the mi-linux server itself MySQL is "localhost"; from XAMPP on my computer it is reached over the network.
+    $on_mi_linux = !in_array($_SERVER['SERVER_NAME'] ?? 'localhost', ['localhost', '127.0.0.1']);
+    $db_host = $on_mi_linux ? "localhost" : "mi-linux.wlv.ac.uk";
+    $mysqli = mysqli_connect($db_host, "2463526", "455qm2", "db2463526");
 } catch (mysqli_sql_exception $e) {
     // Don't show the real error (it contains connection details)
     die("Sorry, the database is not available right now.");
@@ -91,10 +95,7 @@ $twig->addGlobal('user', $_SESSION['username'] ?? null); // who is logged in (nu
 $twig->addFunction(new \Twig\TwigFunction('greeting', 'greeting'));
 $twig->addFunction(new \Twig\TwigFunction('today_text', 'today_text'));
 $twig->addFilter(new \Twig\TwigFilter('time_ago', 'time_ago'));
-// asset('js/app.js') -> "assets/js/app.js?v=1794..." (the number changes when the file changes, so browsers reload it)
-$twig->addFunction(new \Twig\TwigFunction('asset', function (string $path): string {
-    return 'assets/' . $path . '?v=' . filemtime(__DIR__ . '/assets/' . $path);
-}));
+$twig->addGlobal('csp_nonce', $csp_nonce); // put on every <script> in the templates: <script nonce="{{ csp_nonce }}">
 
 // ---------------------------------------------------------------- 4. Helpers
 
@@ -122,7 +123,7 @@ function render(string $template, array $data = []): void
     echo $twig->render($template, $data);
 }
 
-// Is this request coming from our JavaScript (Ajax)? app.js sends the header "X-Requested-With: fetch".
+// Is this request coming from our JavaScript (Ajax)? the page's JavaScript sends the header "X-Requested-With: fetch".
 function is_ajax(): bool
 {
     return ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'fetch' || isset($_GET['ajax']);
@@ -149,7 +150,7 @@ function check_token(): void
 }
 
 // After saving: go to $url and show $message there.
-// For Ajax, the JSON tells app.js where to go.
+// For Ajax, the JSON tells the page's JavaScript where to go.
 function done(string $url, string $message): never
 {
     $_SESSION['message'] = $message;
@@ -295,7 +296,7 @@ function run_query(string $sql, array $params = []): int
 
 // Run a search and return just the ids of the rows that match, in order (whole numbers only).
 // The live search sends these ids to the browser instead of HTML: the page already has every card
-// (drawn by Twig) and app.js only shows, hides and orders them. No HTML is sent, so none can be injected.
+// (drawn by Twig) and the live search script only shows, hides and orders them. No HTML is sent, so none can be injected.
 function matching_ids(mysqli $mysqli, string $sql, array $params): array
 {
     $stmt = mysqli_prepare($mysqli, $sql);
@@ -307,7 +308,7 @@ function matching_ids(mysqli $mysqli, string $sql, array $params): array
 }
 
 // Deleted with the bin button on a card in a list (the form sends from=list): stay on that list.
-// Ajax gets "refresh" so app.js hides the card and updates the numbers; without JavaScript the list reloads.
+// Ajax gets "refresh" so the page's script hides the card and updates the numbers; without JavaScript the list reloads.
 // $page is always a fixed page name from the code, never from the request.
 function deleted_from_list(string $page, string $message): never
 {

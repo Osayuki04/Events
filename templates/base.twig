@@ -8,12 +8,21 @@
     <meta name="robots" content="noindex, nofollow">
     <title>{% block title %}{% endblock %} · Yukylo</title>
 
-    <!-- Tailwind CSS (the only styling on the site), built from assets/css/input.css with "npm run build:css".
-         It is a normal CSS file, so the Content-Security-Policy can block all inline styles and scripts. -->
-    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    <!-- Tailwind CSS from the jsDelivr CDN (the only styling on the site). It reads the classes in the page
+         and creates the CSS in the browser. The @theme block adds the one red colour and the font. -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.18"></script>
+    <style type="text/tailwindcss">
+        @theme {
+            --font-sans: "Outfit", system-ui, sans-serif;
+            --color-brand: #d42a1c;
+            --color-brand-dark: #b0200f;
+        }
+    </style>
+    <!-- The Outfit font (Google Fonts) and the icons (Bootstrap Icons, an icon font only) -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
-    <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+    <!-- The tab icon: a red square with a white diary, written straight into the page (no image file) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d42a1c'/%3E%3Cpath d='M10 8h11a2 2 0 0 1 2 2v14a1 1 0 0 1-1 1H11a2 2 0 0 1-2-2V9a1 1 0 0 1 1-1z' fill='%23fff'/%3E%3Cpath d='M14 8v8l2.5-1.8L19 16V8z' fill='%23d42a1c'/%3E%3C/svg%3E">
 </head>
 <body class="bg-white font-sans text-zinc-900 antialiased">
 
@@ -58,7 +67,7 @@
 
 <main class="mx-auto max-w-[1600px] px-4 pb-14 pt-8 lg:px-8">
 
-    {# ---- Message after saving ("Event saved."). app.js also puts Ajax messages here. ---- #}
+    {# ---- Message after saving ("Event saved."). The script at the bottom also puts Ajax messages here. ---- #}
     <div data-flash-area>
         {% if flash %}
             <div class="mb-6 flex items-center gap-3 rounded-xl border border-zinc-200 px-4 py-3" role="status" data-message>
@@ -72,6 +81,337 @@
     {% block content %}{% endblock %}
 </main>
 
-<script src="{{ asset('js/app.js') }}"></script>
+{#
+   The JavaScript every page uses (plain JavaScript, no libraries). It is written here, inside the layout,
+   so it is on every page. The nonce="{{ csp_nonce }}" lets this script run under the Content-Security-Policy,
+   while any script injected by an attacker (without the nonce) is blocked.
+   Page-specific scripts are next to their HTML instead: the live search is in the search_box macro and the
+   captcha refresh is in the captcha macro (templates/macros.twig).
+     1. Helpers: Ajax header, safe page navigation (goTo), making elements without HTML (el), messages
+     2. Phone menu and closing messages
+     3. "Are you sure?" box for delete buttons
+     4. Forms sent with Ajax: errors show under each field, no page reload
+     5. Autocomplete (Ajax): suggestions while typing, and filling in other fields
+   {% verbatim %} ... {% endverbatim %} stops Twig from reading the JavaScript as template code.
+#}
+<script nonce="{{ csp_nonce }}">
+{% verbatim %}
+'use strict';
+
+/* ------------------------------------------------------------------ 1. Helpers */
+
+// Every Ajax request sends this header, so the PHP page knows to answer with JSON instead of a whole page
+const AJAX_HEADERS = { 'X-Requested-With': 'fetch' };
+
+// The pages of this site the script may go to, and the sections it may jump to on a page
+const PAGES = ['index.php', 'events.php', 'event.php', 'event_form.php', 'people.php', 'person_form.php',
+  'jobs.php', 'job_form.php', 'login.php', 'register.php'];
+const PAGE_SECTIONS = ['people', 'jobs'];
+const ID_PARAMS = ['id', 'event_id'];
+
+/*
+ * Go to a page the server told us about (after saving, a picked suggestion, or "log in again").
+ * The address is never used as it is: it is rebuilt from the fixed lists above plus whole numbers,
+ * e.g. "event.php?id=5#people". So it can only ever be one of our own pages (no open redirect,
+ * no javascript: links). Anything else in the address is dropped.
+ */
+function goTo(address) {
+  const parts = /^([a-z_]+\.php)(\?[^#]*)?(#[a-z]+)?$/.exec(String(address ?? ''));
+  const page = parts ? PAGES.find((p) => p === parts[1]) : undefined;
+  if (!page) return;
+
+  let target = page;
+  const query = new URLSearchParams(parts[2] || '');
+  const key = ID_PARAMS.find((k) => query.has(k));
+  const id = key ? Number(query.get(key)) : NaN;
+  if (key && Number.isInteger(id) && id > 0) target += `?${key}=${id}`;
+
+  const section = PAGE_SECTIONS.find((name) => `#${name}` === parts[3]);
+  if (section) target += `#${section}`;
+
+  window.location.assign(target);
+}
+
+/*
+ * Make an element without writing HTML: el('button', {type: 'button', class: '...'}, ['Close']).
+ * Text children become text nodes (never parsed as HTML), so the site's scripts never use innerHTML.
+ */
+function el(tag, attributes = {}, children = []) {
+  const element = document.createElement(tag);
+  for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, value);
+  element.append(...children);
+  return element;
+}
+
+// Show a message at the top of the page, e.g. "Event saved." after an Ajax save
+function showMessage(text) {
+  const area = document.querySelector('[data-flash-area]');
+  if (!area || !text) return;
+  const box = el('div', { class: 'mb-6 flex items-center gap-3 rounded-xl border border-zinc-200 px-4 py-3', role: 'status', 'data-message': '' }, [
+    el('i', { class: 'bi bi-check-square-fill text-brand' }),
+    el('span', { class: 'flex-1' }, [String(text)]),
+    el('button', { type: 'button', class: 'text-zinc-400 hover:text-zinc-900', 'data-dismiss': '', 'aria-label': 'Close' }, [
+      el('i', { class: 'bi bi-x-lg' }),
+    ]),
+  ]);
+  area.replaceChildren(box);
+}
+
+/* ------------------------------------------------------------------ 2. Phone menu + messages */
+
+// The ☰ button opens and closes the menu on small screens
+document.querySelectorAll('[data-menu-toggle]').forEach((button) => {
+  const menu = document.getElementById(button.getAttribute('aria-controls'));
+  button.addEventListener('click', () => {
+    const open = menu.classList.toggle('hidden') === false;
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+});
+
+// The × on a message box closes it (works for messages added later too)
+document.addEventListener('click', (e) => {
+  const close = e.target.closest('[data-dismiss]');
+  if (close) close.closest('[data-message]').remove();
+});
+
+/* ------------------------------------------------------------------ 3. "Are you sure?" box */
+
+// Any <form data-confirm="Delete this?"> asks first in a pop-up box (used by every delete / remove button)
+(() => {
+  const forms = document.querySelectorAll('form[data-confirm]');
+  if (!forms.length) return;
+
+  const dialog = el('dialog', {
+    class: 'm-auto w-[min(420px,calc(100%-32px))] rounded-2xl border border-zinc-200 bg-white p-6 text-zinc-900 backdrop:bg-black/40',
+    'aria-labelledby': 'confirm-title',
+  }, [
+    el('h2', { id: 'confirm-title', class: 'text-lg font-semibold' }),
+    el('p', { class: 'mt-2 text-sm text-zinc-500', 'data-detail': '' }),
+    el('div', { class: 'mt-6 flex justify-end gap-2' }, [
+      el('button', { type: 'button', class: 'rounded-xl border border-zinc-200 px-4 py-2 font-medium hover:bg-zinc-50', 'data-cancel': '' }, ['Keep it']),
+      el('button', { type: 'button', class: 'rounded-xl bg-brand px-4 py-2 font-medium text-white hover:bg-brand-dark', 'data-ok': '' }, ['Delete']),
+    ]),
+  ]);
+  document.body.append(dialog);
+
+  const title = dialog.querySelector('#confirm-title');
+  const detail = dialog.querySelector('[data-detail]');
+  const ok = dialog.querySelector('[data-ok]');
+  let pending = null;
+
+  dialog.querySelector('[data-cancel]').addEventListener('click', () => dialog.close());
+  ok.addEventListener('click', () => {
+    pending.dataset.confirmed = '1';
+    dialog.close();
+    pending.requestSubmit(); // goes on to the Ajax form code below
+  });
+
+  forms.forEach((form) => form.addEventListener('submit', (e) => {
+    if (form.dataset.confirmed === '1') return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    pending = form;
+    title.textContent = form.dataset.confirm;
+    detail.textContent = form.dataset.confirmDetail || 'This can’t be undone.';
+    ok.textContent = form.dataset.confirmAction || 'Delete';
+    dialog.showModal();
+  }));
+})();
+
+/* ------------------------------------------------------------------ 4. Forms sent with Ajax */
+
+/*
+ * A <form data-ajax> is posted in the background. The PHP page answers with JSON:
+ *   {ok: false, errors: {field: "message"}}   -> show each message under its field
+ *   {ok: true, redirect: "event.php?id=5"}     -> go there (the page shows "Event saved.")
+ *   {ok: true, refresh: true, message: "..."}  -> show the message and refresh the list of cards
+ * Without JavaScript the same forms still work as normal forms.
+ */
+
+// A <select data-autosubmit> saves its form as soon as it changes (job status on the Jobs page),
+// so its "Save" button is only needed without JavaScript
+document.querySelectorAll('[data-autosubmit-button]').forEach((button) => button.classList.add('hidden'));
+document.addEventListener('change', (e) => {
+  if (e.target.matches('select[data-autosubmit]')) e.target.form.requestSubmit();
+});
+
+// Show the error messages from the server under their fields, and outline those fields in red
+function showErrors(form, errors) {
+  form.querySelectorAll('[data-error-for]').forEach((p) => { p.textContent = ''; p.classList.add('hidden'); });
+  form.querySelectorAll('.border-brand[name]').forEach((input) => input.classList.replace('border-brand', 'border-zinc-200'));
+
+  let first = null;
+  for (const [name, message] of Object.entries(errors)) {
+    const p = form.querySelector(`[data-error-for="${CSS.escape(name)}"]`);
+    if (p) { p.textContent = message; p.classList.remove('hidden'); }
+    const input = form.elements[name];
+    if (input && input.classList) {
+      input.classList.replace('border-zinc-200', 'border-brand');
+      input.setAttribute('aria-invalid', 'true');
+      first = first || input;
+    }
+  }
+  first?.focus();
+}
+
+/* After a quick action on a card saved (People: follow up, Jobs: status), show the card's new state.
+   Both states are already drawn by Twig; only which one is visible changes. */
+function updateCard(form, data) {
+  const card = form.closest('[data-id]');
+  if (!card) return;
+  if (data.follow_up === 0 || data.follow_up === 1) {
+    card.querySelectorAll('[data-follow]').forEach((item) => { item.hidden = Number(item.dataset.follow) !== data.follow_up; });
+  }
+  const select = form.querySelector('select[data-autosubmit]');
+  if (select) card.querySelectorAll('[data-status-label]').forEach((label, i) => { label.hidden = i !== select.selectedIndex; });
+}
+
+document.addEventListener('submit', async (e) => {
+  const form = e.target;
+  if (!form.matches('form[data-ajax]')) return;
+  e.preventDefault();
+
+  const button = form.querySelector('[type=submit]');
+  if (button) button.disabled = true;
+  try {
+    const res = await fetch(form.getAttribute('action'), { method: 'POST', body: new FormData(form), headers: AJAX_HEADERS });
+    const data = await res.json();
+    if (data.redirect) {
+      goTo(data.redirect);
+      return;
+    }
+    if (data.errors) showErrors(form, data.errors);
+    if (data.error) showMessage(data.error);
+    // Tell the form it failed (the captcha script listens for this and shows a new picture)
+    if (!data.ok) form.dispatchEvent(new CustomEvent('ajax:failed'));
+    if (data.refresh) {
+      showMessage(data.message);
+      updateCard(form, data);
+      // On the Events, People and Jobs pages the live search refreshes the cards; anywhere else, reload
+      if (window.refreshResults) window.refreshResults(); else window.location.reload();
+    }
+  } catch (err) {
+    showMessage('Saving failed. Check your connection and try again.');
+  } finally {
+    if (button) button.disabled = false;
+  }
+});
+
+/* ------------------------------------------------------------------ 5. Autocomplete */
+
+/*
+ * <input data-suggest="company"> asks suggest.php?field=company&q=... while you type and shows a list.
+ * Arrow keys + Enter pick a suggestion, Escape closes. A suggestion can also:
+ *   - fill other fields (picking a past event fills its type, venue and city)
+ *   - open a page (the person is already in your diary)
+ */
+document.querySelectorAll('input[data-suggest]').forEach((input) => {
+  const wrap = input.closest('[data-suggest-wrap]') || input.parentElement;
+  wrap.classList.add('relative');
+
+  const list = document.createElement('div');
+  list.id = `${input.name}-suggestions`;
+  list.className = 'absolute left-0 right-0 z-20 hidden max-h-72 overflow-auto rounded-xl border border-zinc-200 bg-white p-1';
+  list.setAttribute('role', 'listbox');
+  wrap.append(list);
+
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-controls', list.id);
+  input.setAttribute('aria-expanded', 'false');
+
+  let items = [];
+  let active = -1;
+  let timer;
+  let controller;
+
+  function close() {
+    list.classList.add('hidden');
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+    active = -1;
+  }
+
+  // Build the list with createElement + textContent (the suggestions are never parsed as HTML)
+  function show(data) {
+    items = data.items;
+    list.replaceChildren();
+    if (!items.length) { close(); return; }
+
+    if (data.title) {
+      list.append(el('p', { class: 'px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-brand' }, [String(data.title)]));
+    }
+    items.forEach((item, i) => {
+      const option = el('button', {
+        type: 'button', id: `${list.id}-${i}`, role: 'option', 'aria-selected': 'false',
+        class: 'block w-full rounded-lg px-3 py-2 text-left hover:bg-zinc-50 aria-selected:bg-zinc-100',
+      }, [el('span', { class: 'block font-medium' }, [String(item.value)])]);
+      if (item.detail) option.append(el('span', { class: 'block text-xs text-zinc-500' }, [String(item.detail)]));
+      option.addEventListener('mousedown', (e) => e.preventDefault()); // keep focus in the input
+      option.addEventListener('click', () => choose(i));
+      list.append(option);
+    });
+
+    // Put the list right under the input box (not under its label or help text)
+    list.style.top = `${input.offsetTop + input.offsetHeight + 4}px`;
+    list.classList.remove('hidden');
+    input.setAttribute('aria-expanded', 'true');
+  }
+
+  function choose(i) {
+    const item = items[i];
+    if (!item) return;
+    if (item.url) { goTo(item.url); return; }
+    input.value = item.value;
+    // Form filling assistance: fill in the other fields this suggestion knows about (only if they're empty)
+    if (item.fill && input.form) {
+      for (const [name, value] of Object.entries(item.fill)) {
+        const other = input.form.elements[name];
+        if (other && !other.value && value) other.value = value;
+      }
+    }
+    close();
+    input.dispatchEvent(new Event('input', { bubbles: true })); // search boxes search again
+  }
+
+  function move(step) {
+    const options = list.querySelectorAll('[role=option]');
+    if (!options.length) return;
+    options[active]?.setAttribute('aria-selected', 'false');
+    active = (active + step + options.length) % options.length;
+    options[active].setAttribute('aria-selected', 'true');
+    options[active].scrollIntoView({ block: 'nearest' });
+    input.setAttribute('aria-activedescendant', options[active].id);
+  }
+
+  input.addEventListener('input', (e) => {
+    if (!e.isTrusted) return; // ignore the event we fire ourselves after choosing
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) { close(); return; }
+    timer = setTimeout(async () => {
+      controller?.abort();
+      controller = new AbortController();
+      try {
+        const res = await fetch(`suggest.php?field=${encodeURIComponent(input.dataset.suggest)}&q=${encodeURIComponent(q)}`,
+          { headers: AJAX_HEADERS, signal: controller.signal });
+        show(await res.json());
+      } catch (err) {
+        if (err.name !== 'AbortError') close();
+      }
+    }, 200);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (list.classList.contains('hidden')) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); choose(active); }
+    else if (e.key === 'Escape') close();
+  });
+  input.addEventListener('blur', () => setTimeout(close, 150));
+});
+{% endverbatim %}
+</script>
 </body>
 </html>

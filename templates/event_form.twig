@@ -18,7 +18,7 @@
         <p class="mt-2 text-zinc-500">{{ event ? 'Change anything below and save.' : "Start typing the name — if you've been before, the venue and city fill in for you." }}</p>
     </div>
 
-    {# data-ajax: sent in the background by app.js; errors appear under the fields without reloading #}
+    {# data-ajax: sent in the background by the script in base.twig; errors appear under the fields without reloading #}
     <form method="post" action="event_form.php{{ event ? '?id=' ~ id }}" class="rounded-2xl border border-zinc-200 p-5" novalidate data-ajax>
         <input type="hidden" name="token" value="{{ token }}">
 

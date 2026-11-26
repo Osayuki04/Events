@@ -1,6 +1,6 @@
 <?php
 // Events list with multi-criteria search. Logic only - the HTML is in templates/events.twig
-// events.php?ajax=1&...  returns the ids of the matching events as JSON (live search, see app.js)
+// events.php?ajax=1&...  returns the ids of the matching events as JSON (live search, see the search_box macro in templates/macros.twig)
 include("db.php");
 $user_id = require_login(); // only for logged-in users (else sent to login.php); every query below only uses their records
 
@@ -99,7 +99,7 @@ if (is_ajax()) {
     send_json(['label' => $label, 'ids' => $ids, 'stats' => ['' => $all_events] + array_map('intval', array_column($type_stats, 'total', 'id'))]);
 }
 
-// The page has every event (in the chosen order); the ones that don't match are hidden (app.js shows them again)
+// The page has every event (in the chosen order); the ones that don't match are hidden (the live search script shows them again)
 $events = fetch_rows("SELECT e.*, c.name AS category,
                              (SELECT COUNT(*) FROM people p WHERE p.event_id = e.id) AS people_count,
                              (SELECT COUNT(*) FROM jobs j WHERE j.event_id = e.id) AS job_count

@@ -10,7 +10,7 @@
         <p class="mt-2 text-zinc-500">Every event you've been to, where you sat and what you thought of it.</p>
     </div>
 
-    {# Stat cards by type. Clicking one sets the "Type" filter and searches again (Ajax, see app.js).
+    {# Stat cards by type. Clicking one sets the "Type" filter and searches again (Ajax, see the search_box macro).
        Without JavaScript they are normal links. The selected card turns red. #}
     <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6" data-status-filter data-field="category">
         {{ ui.stat_card('events.php', '', search.category, 'All events', all_events, 'everything in your diary') }}
@@ -19,7 +19,7 @@
         {% endfor %}
     </div>
 
-    {# Search: results update as you type, with suggestions (Ajax, see app.js). Every filter combines with AND. #}
+    {# Search: results update as you type, with suggestions (Ajax, see the search_box macro). Every filter combines with AND. #}
     <form method="get" action="events.php" class="mb-6 rounded-2xl border border-zinc-200 p-5" data-live-search role="search">
         <div class="flex gap-3">
             {{ ui.search_box(search.q, 'Search by title, venue, city or notes', 'events') }}

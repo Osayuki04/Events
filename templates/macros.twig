@@ -146,11 +146,132 @@
                type="search" name="q" value="{{ q }}" placeholder="{{ placeholder }}" maxlength="80" aria-label="{{ placeholder }}"
                data-suggest="{{ suggest }}" autocomplete="off">
     </div>
+
+    {#
+       Live search (Ajax) for the Events, People and Jobs pages - the only pages with this search box.
+       Results update as you type, and the stat cards above the search filter the list.
+       How it avoids DOM XSS completely:
+         - the page already has every card, drawn by Twig (which escapes every value), each with data-id="5"
+         - the server answers a search with only the ids of the cards that match, e.g. {"ids": [5, 2, 9]}
+         - this script turns each id into a whole number and shows, hides and orders the existing cards
+       No HTML comes back from the server and nothing is ever parsed as HTML, so nothing can be injected.
+       It waits for DOMContentLoaded because the results and the layout's helpers (goTo, AJAX_HEADERS) come later in the page.
+    #}
+    <script nonce="{{ csp_nonce }}">
+    {% verbatim %}
+    document.addEventListener('DOMContentLoaded', () => {
+      // The only pages the live search may ask (it is never sent anywhere else)
+      const SEARCH_PAGES = ['events.php', 'people.php', 'jobs.php'];
+
+      const form = document.querySelector('form[data-live-search]');
+      const results = document.querySelector('[data-results]');
+      const count = document.querySelector('[data-count]');
+      if (!form || !results) return;
+
+      const page = SEARCH_PAGES.find((p) => p === form.getAttribute('action'));
+      const grid = results.querySelector('[data-cards]');
+      const empty = results.querySelector('[data-empty]');
+      if (!page || !grid) return;
+
+      // Show the cards whose ids came back, in that order; hide the rest.
+      // The ids are only used as numbers to look up a position: the elements that get shown and
+      // moved are always the page's own cards, never anything made from the server's answer.
+      function showCards(ids) {
+        const position = new Map();
+        (Array.isArray(ids) ? ids : []).forEach((id, i) => {
+          const n = Number(id);
+          if (Number.isInteger(n) && !position.has(n)) position.set(n, i);
+        });
+        const cards = [...grid.querySelectorAll(':scope > [data-id]')];
+        const placeOf = (card) => position.get(Number(card.dataset.id));
+        cards.forEach((card) => { card.hidden = placeOf(card) === undefined; });
+        const shown = cards.filter((card) => !card.hidden).sort((a, b) => placeOf(a) - placeOf(b));
+        shown.forEach((card) => grid.appendChild(card)); // moves it to the end, so the shown cards end up in search order
+        if (empty) empty.hidden = shown.length > 0;
+      }
+
+      /*
+       * Stat cards: <div data-status-filter data-field="category">, each card has data-status="value".
+       * Clicking a card picks the option with that value in the form's dropdown and searches again
+       * (the option is picked by its position: no text is copied into the form).
+       * The card matching the dropdown gets aria-current="true", which turns it red (Tailwind aria-[current=true]).
+       */
+      const filter = document.querySelector('[data-status-filter]');
+      const field = filter ? form.elements[filter.dataset.field || 'status'] : null;
+      const canFilter = filter && field instanceof HTMLSelectElement;
+
+      function highlightCard() {
+        if (!canFilter) return;
+        filter.querySelectorAll('[data-status]').forEach((card) => {
+          if (card.dataset.status === field.value) card.setAttribute('aria-current', 'true');
+          else card.removeAttribute('aria-current');
+        });
+      }
+
+      if (canFilter) {
+        filter.addEventListener('click', (e) => {
+          const card = e.target.closest('[data-status]');
+          if (!card) return;
+          e.preventDefault();
+          const index = [...field.options].findIndex((option) => option.value === card.dataset.status);
+          field.selectedIndex = Math.max(index, 0); // not one of the options: back to the first ("All")
+          run();
+        });
+      }
+
+      let timer;
+      let controller;
+
+      // Ask the page for the ids that match the form (page.php?ajax=1&q=...), then show those cards
+      async function run() {
+        highlightCard();
+        const params = new URLSearchParams();
+        for (const [key, value] of new FormData(form)) {
+          if (value !== '') params.append(key, value);
+        }
+        params.set('ajax', '1');
+
+        controller?.abort();
+        controller = new AbortController();
+        results.classList.add('opacity-50');
+        try {
+          const res = await fetch(`${page}?${params}`, { headers: AJAX_HEADERS, signal: controller.signal, credentials: 'same-origin' });
+          if (res.status === 401) { goTo('login.php'); return; } // logged out (e.g. idle too long)
+          if (!res.ok || !(res.headers.get('Content-Type') || '').includes('application/json')) throw new Error(res.status);
+          const data = await res.json();
+          showCards(data.ids);
+          if (count) count.textContent = String(data.label ?? '');
+          // Update the numbers on the stat cards (e.g. after "Mark as followed up" or a delete): whole numbers only
+          if (data.stats && typeof data.stats === 'object') {
+            filter?.querySelectorAll('[data-stat-value]').forEach((number) => {
+              const total = Number(data.stats[number.dataset.statValue]);
+              if (Number.isInteger(total)) number.textContent = String(total);
+            });
+          }
+        } catch (err) {
+          if (err.name !== 'AbortError' && count) count.textContent = 'Search is unavailable right now. Press Search to try again.';
+        } finally {
+          results.classList.remove('opacity-50');
+        }
+      }
+      // The layout's Ajax form code calls this after a quick action or delete on a card
+      window.refreshResults = run;
+
+      form.addEventListener('submit', (e) => { e.preventDefault(); run(); });
+      form.addEventListener('change', (e) => { if (e.target.type !== 'search') run(); });
+      form.addEventListener('input', (e) => {
+        if (e.target.type !== 'search') return;
+        clearTimeout(timer);
+        timer = setTimeout(run, 300); // wait until typing pauses
+      });
+    });
+    {% endverbatim %}
+    </script>
 {% endmacro %}
 
 
 {# ---- The captcha: a picture of 5 letters (drawn by captcha.php) and a box to type them in.
-     The "New picture" button and refreshing after a wrong try are done by app.js. ---- #}
+     The "New picture" button and refreshing after a wrong try are done by the script at the end of this macro. ---- #}
 {% macro captcha(errors) %}
     {% set error = errors.captcha ?? null %}
     <div>
@@ -167,6 +288,30 @@
                id="captcha" name="captcha" type="text" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
         <p class="mt-1 text-[13px] text-brand {{ error ? '' : 'hidden' }}" data-error-for="captcha">{{ error }}</p>
     </div>
+
+    {#
+       Captcha refresh (login and create account pages only). Each captcha code works once, so a new picture
+       is loaded when the ↻ button is pressed, and after a failed login / sign-up (the layout's Ajax form
+       code sends an "ajax:failed" event to the form). The time is added to the address so the browser
+       doesn't show the old picture from its cache.
+    #}
+    <script nonce="{{ csp_nonce }}">
+    {% verbatim %}
+    (() => {
+      const img = document.currentScript.parentElement.querySelector('[data-captcha]');
+      const form = img.closest('form');
+      function newCaptcha() {
+        img.src = `captcha.php?${Date.now()}`;
+        form.elements.captcha.value = '';
+      }
+      form.querySelector('[data-captcha-refresh]').addEventListener('click', () => {
+        newCaptcha();
+        form.elements.captcha.focus();
+      });
+      form.addEventListener('ajax:failed', newCaptcha);
+    })();
+    {% endverbatim %}
+    </script>
 {% endmacro %}
 
 

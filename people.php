@@ -1,6 +1,6 @@
 <?php
 // Everyone you've met. Logic only - the HTML is in templates/people.twig
-// people.php?ajax=1&...  returns the ids of the matching people as JSON (live search, see app.js)
+// people.php?ajax=1&...  returns the ids of the matching people as JSON (live search, see the search_box macro in templates/macros.twig)
 include("db.php");
 $user_id = require_login(); // only for logged-in users (else sent to login.php); every query below only uses their records
 
@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     run_query("UPDATE people p JOIN events e ON e.id = p.event_id
                SET p.follow_up = 1 - p.follow_up WHERE p.id = ? AND e.user_id = ?", [$id, $user_id]);
 
-    // Ajax: tell app.js the new state (0 or 1) so it can update the card, then refresh the list and numbers
+    // Ajax: tell the page's script the new state (0 or 1) so it can update the card, then refresh the list and numbers
     if (is_ajax()) {
         $row = fetch_row("SELECT p.follow_up FROM people p JOIN events e ON e.id = p.event_id
                           WHERE p.id = ? AND e.user_id = ?", [$id, $user_id]);
@@ -63,7 +63,7 @@ if (is_ajax()) {
     send_json(['label' => $label, 'ids' => $ids, 'stats' => $stats]);
 }
 
-// The page has everyone; the people that don't match the search are hidden (app.js shows them again)
+// The page has everyone; the people that don't match the search are hidden (the live search script shows them again)
 $people = fetch_rows("SELECT p.*, e.title AS event_title, e.event_date
                       FROM people p JOIN events e ON e.id = p.event_id
                       WHERE e.user_id = ? $order", [$user_id]);

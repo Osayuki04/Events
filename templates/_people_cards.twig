@@ -1,6 +1,6 @@
 {# The person cards on people.php. Everyone is here; the people that don't match the search are hidden.
-   The live search (app.js) gets only the ids of the matching people and shows, hides and orders these cards.
-   Both follow-up states are drawn (data-follow="1" / "0"), app.js shows the right one after the button is used.
+   The live search (search_box macro) gets only the ids of the matching people and shows, hides and orders these cards.
+   Both follow-up states are drawn (data-follow="1" / "0"), the script in base.twig shows the right one after the button is used.
    Variables: people, visible (id => position of the people that match), q, follow_up #}
 {% import 'macros.twig' as ui %}
 
@@ -30,7 +30,7 @@
                 </div>
 
                 {# The two calls to action: solid red first, red outline second.
-                   The first one saves in the background (Ajax): data-ajax on the form, see app.js #}
+                   The first one saves in the background (Ajax): data-ajax on the form, see base.twig #}
                 <div class="mt-5 grid grid-cols-[1fr_1fr_auto] gap-2">
                     <form method="post" action="people.php" class="m-0" data-ajax>
                         <input type="hidden" name="token" value="{{ token }}">

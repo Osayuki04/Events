@@ -1,6 +1,6 @@
 <?php
 // Every saved job. Logic only - the HTML is in templates/jobs.twig
-// jobs.php?ajax=1&...  returns the ids of the matching jobs as JSON (live search, see app.js)
+// jobs.php?ajax=1&...  returns the ids of the matching jobs as JSON (live search, see the search_box macro in templates/macros.twig)
 include("db.php");
 $user_id = require_login(); // only for logged-in users (else sent to login.php); every query below only uses their records
 
@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $message = "Choose a status from the list.";
     }
 
-    // Ajax: tell app.js to refresh the cards and the numbers
+    // Ajax: tell the page's script to refresh the cards and the numbers
     if (is_ajax()) {
         send_json(['ok' => true, 'refresh' => true, 'message' => $message]);
     }
@@ -72,7 +72,7 @@ if (is_ajax()) {
     send_json(['label' => $label, 'ids' => $ids, 'stats' => $stats]);
 }
 
-// The page has every job; the ones that don't match the search are hidden (app.js shows them again)
+// The page has every job; the ones that don't match the search are hidden (the live search script shows them again)
 $jobs = fetch_rows("SELECT j.*, e.title AS event_title, e.event_date
                     FROM jobs j JOIN events e ON e.id = j.event_id
                     WHERE e.user_id = ? $order", [$user_id]);
