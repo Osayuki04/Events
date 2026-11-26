@@ -17,3 +17,6 @@ Thumbs.db
 
 # Personal notes
 /commit-plan.md
+
+# Node (Tailwind build tool)
+/node_modules/

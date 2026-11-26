@@ -1,0 +1,13 @@
+{
+  "name": "yukylo",
+  "private": true,
+  "description": "Builds assets/css/app.css from assets/css/input.css with Tailwind CSS",
+  "scripts": {
+    "build:css": "tailwindcss -i assets/css/input.css -o assets/css/app.css --minify",
+    "watch:css": "tailwindcss -i assets/css/input.css -o assets/css/app.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.1.18",
+    "tailwindcss": "4.1.18"
+  }
+}

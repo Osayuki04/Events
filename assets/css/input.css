@@ -1,0 +1,21 @@
+/*
+ * Yukylo - Tailwind CSS source.
+ * This file is built into assets/css/app.css (the file the pages load), so no CSS is
+ * generated in the browser and the Content-Security-Policy can block inline styles.
+ *
+ * Rebuild after changing classes in templates/ or app.js:
+ *   npm install   (once)
+ *   npm run build:css
+ */
+@import "tailwindcss" source(none);
+
+/* Where Tailwind looks for the classes that are used */
+@source "../../templates";
+@source "../js/app.js";
+
+/* The one red colour and the font */
+@theme {
+    --font-sans: "Outfit", system-ui, sans-serif;
+    --color-brand: #d42a1c;
+    --color-brand-dark: #b0200f;
+}
