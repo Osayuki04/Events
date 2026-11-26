@@ -31,7 +31,7 @@
 
                 {# The two calls to action: solid red first, red outline second.
                    The first one saves in the background (Ajax): data-ajax on the form, see app.js #}
-                <div class="mt-5 grid grid-cols-2 gap-2">
+                <div class="mt-5 grid grid-cols-[1fr_1fr_auto] gap-2">
                     <form method="post" action="people.php" class="m-0" data-ajax>
                         <input type="hidden" name="token" value="{{ token }}">
                         <input type="hidden" name="id" value="{{ person.id }}">
@@ -43,6 +43,8 @@
                         </button>
                     </form>
                     <a class="rounded-xl border border-brand px-3 py-2.5 text-center text-sm font-medium text-brand transition-colors hover:bg-brand hover:text-white" href="person_form.php?id={{ person.id }}">Edit</a>
+                    {{ ui.delete_button('person_form.php?id=' ~ person.id, {action: 'delete'}, 'Remove ' ~ person.name ~ '?',
+                        person.name ~ ' and their contact details will be deleted from your diary.') }}
                 </div>
             </article>
         {% endfor %}

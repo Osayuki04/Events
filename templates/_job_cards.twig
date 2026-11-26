@@ -46,6 +46,8 @@
                         <a class="rounded-xl bg-brand px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-brand-dark" href="{{ job.url }}" target="_blank" rel="noopener">View advert</a>
                     {% endif %}
                     <a class="rounded-xl border border-brand px-3.5 py-2 text-[13px] font-medium text-brand transition-colors hover:bg-brand hover:text-white" href="job_form.php?id={{ job.id }}">Edit</a>
+                    {{ ui.delete_button('job_form.php?id=' ~ job.id, {action: 'delete'}, 'Remove this job?',
+                        job.title ~ ' at ' ~ job.company ~ ' will be deleted from your diary.', true) }}
                 </div>
             </article>
         {% endfor %}

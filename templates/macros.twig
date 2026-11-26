@@ -168,3 +168,23 @@
         <p class="mt-1 text-[13px] text-brand {{ error ? '' : 'hidden' }}" data-error-for="captcha">{{ error }}</p>
     </div>
 {% endmacro %}
+
+
+{# ---- Bin button on a card in a list: deletes the record after the "Are you sure?" box.
+     action = the page that deletes it, fields = hidden fields it needs (e.g. {id: 5} or {action: 'delete'}),
+     title / detail = the text in the "Are you sure?" box, small = the smaller size used on job cards.
+     Sent with Ajax (data-ajax); from=list tells the page to stay on the list and refresh the cards. ---- #}
+{% macro delete_button(action, fields, title, detail, small = false) %}
+    <form method="post" action="{{ action }}" class="m-0 flex" data-ajax
+          data-confirm="{{ title }}" data-confirm-detail="{{ detail }}" data-confirm-action="Delete">
+        <input type="hidden" name="token" value="{{ token }}">
+        {% for name, value in fields %}
+            <input type="hidden" name="{{ name }}" value="{{ value }}">
+        {% endfor %}
+        <input type="hidden" name="from" value="list">
+        <button class="grid {{ small ? 'size-9' : 'w-11' }} place-items-center rounded-xl border border-zinc-200 text-zinc-500 transition-colors hover:border-brand hover:bg-brand hover:text-white"
+                type="submit" aria-label="{{ title }}" title="Delete">
+            <i class="bi bi-trash3-fill"></i>
+        </button>
+    </form>
+{% endmacro %}

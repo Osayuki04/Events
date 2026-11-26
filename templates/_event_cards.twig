@@ -29,10 +29,13 @@
                     </p>
                 </div>
 
-                {# The two calls to action: solid red first, red outline second #}
-                <div class="mt-5 grid grid-cols-2 gap-2">
+                {# The two calls to action (solid red first, red outline second), then a small bin button #}
+                <div class="mt-5 grid grid-cols-[1fr_1fr_auto] gap-2">
                     <a class="rounded-xl bg-brand px-3 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-brand-dark" href="event.php?id={{ event.id }}">View</a>
                     <a class="rounded-xl border border-brand px-3 py-2.5 text-center text-sm font-medium text-brand transition-colors hover:bg-brand hover:text-white" href="event_form.php?id={{ event.id }}">Edit</a>
+                    {{ ui.delete_button('event_delete.php', {id: event.id}, 'Delete “' ~ event.title ~ '”?',
+                        'The ' ~ event.people_count ~ (event.people_count == 1 ? ' person' : ' people') ~ ' and '
+                        ~ event.job_count ~ (event.job_count == 1 ? ' job' : ' jobs') ~ ' saved from it will be deleted too.') }}
                 </div>
             </article>
         {% endfor %}
