@@ -104,7 +104,7 @@
 const AJAX_HEADERS = { 'X-Requested-With': 'fetch' };
 
 // The pages of this site the script may go to, and the sections it may jump to on a page
-const PAGES = ['index.php', 'events.php', 'event.php', 'event_form.php', 'people.php', 'person_form.php',
+const PAGES = ['index.php', 'events.php', 'event.php', 'event_form.php', 'people.php', 'person.php', 'person_form.php',
   'jobs.php', 'job_form.php', 'login.php', 'register.php'];
 const PAGE_SECTIONS = ['people', 'jobs'];
 const ID_PARAMS = ['id', 'event_id'];
@@ -224,16 +224,9 @@ document.addEventListener('click', (e) => {
  * A <form data-ajax> is posted in the background. The PHP page answers with JSON:
  *   {ok: false, errors: {field: "message"}}   -> show each message under its field
  *   {ok: true, redirect: "event.php?id=5"}     -> go there (the page shows "Event saved.")
- *   {ok: true, refresh: true, message: "..."}  -> show the message and refresh the list of cards
+ *   {ok: true, refresh: true, message: "..."}  -> show the message and refresh the list of cards (after a bin button)
  * Without JavaScript the same forms still work as normal forms.
  */
-
-// A <select data-autosubmit> saves its form as soon as it changes (job status on the Jobs page),
-// so its "Save" button is only needed without JavaScript
-document.querySelectorAll('[data-autosubmit-button]').forEach((button) => button.classList.add('hidden'));
-document.addEventListener('change', (e) => {
-  if (e.target.matches('select[data-autosubmit]')) e.target.form.requestSubmit();
-});
 
 // Show the error messages from the server under their fields, and outline those fields in red
 function showErrors(form, errors) {
@@ -252,18 +245,6 @@ function showErrors(form, errors) {
     }
   }
   first?.focus();
-}
-
-/* After a quick action on a card saved (People: follow up, Jobs: status), show the card's new state.
-   Both states are already drawn by Twig; only which one is visible changes. */
-function updateCard(form, data) {
-  const card = form.closest('[data-id]');
-  if (!card) return;
-  if (data.follow_up === 0 || data.follow_up === 1) {
-    card.querySelectorAll('[data-follow]').forEach((item) => { item.hidden = Number(item.dataset.follow) !== data.follow_up; });
-  }
-  const select = form.querySelector('select[data-autosubmit]');
-  if (select) card.querySelectorAll('[data-status-label]').forEach((label, i) => { label.hidden = i !== select.selectedIndex; });
 }
 
 document.addEventListener('submit', async (e) => {
@@ -286,7 +267,6 @@ document.addEventListener('submit', async (e) => {
     if (!data.ok) form.dispatchEvent(new CustomEvent('ajax:failed'));
     if (data.refresh) {
       showMessage(data.message);
-      updateCard(form, data);
       // On the Events, People and Jobs pages the live search refreshes the cards; anywhere else, reload
       if (window.refreshResults) window.refreshResults(); else window.location.reload();
     }

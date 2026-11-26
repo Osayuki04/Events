@@ -10,7 +10,7 @@
         <div class="rounded-xl border border-zinc-200 px-4 py-3">That person or event doesn't exist. It may have been deleted.</div>
     {% else %}
 
-    <a class="mb-3.5 inline-flex items-center gap-1 text-sm font-medium text-brand" href="event.php?id={{ event_id }}#people"><i class="bi bi-caret-left-fill"></i>{{ event.title }}</a>
+    <a class="mb-3.5 inline-flex items-center gap-1 text-sm font-medium text-brand" href="{{ person ? 'person.php?id=' ~ id : 'event.php?id=' ~ event_id ~ '#people' }}"><i class="bi bi-caret-left-fill"></i>{{ person ? person.name : event.title }}</a>
 
     <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -61,7 +61,7 @@
 
         <div class="mt-6 flex gap-2 border-t border-zinc-200 pt-5">
             <button class="rounded-xl bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark" type="submit">{{ person ? 'Save changes' : 'Add person' }}</button>
-            <a class="rounded-xl border border-brand px-4 py-2.5 font-medium text-brand hover:bg-brand hover:text-white" href="event.php?id={{ event_id }}#people">Cancel</a>
+            <a class="rounded-xl border border-brand px-4 py-2.5 font-medium text-brand hover:bg-brand hover:text-white" href="{{ person ? 'person.php?id=' ~ id : 'event.php?id=' ~ event_id ~ '#people' }}">Cancel</a>
         </div>
     </form>
 

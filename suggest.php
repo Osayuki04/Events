@@ -94,7 +94,7 @@ switch ($field) {
         $title = 'Already in your diary';
         foreach (fetch_rows("SELECT p.id, p.name, e.title AS event_title FROM people p JOIN events e ON e.id = p.event_id
                              WHERE e.user_id = ? AND p.name LIKE ? ORDER BY p.name LIKE ? DESC, p.name LIMIT 5", [$user_id, $like, $starts]) as $row) {
-            $items[] = ['value' => $row['name'], 'detail' => 'Met at ' . $row['event_title'] . ' · open their details', 'url' => 'person_form.php?id=' . $row['id']];
+            $items[] = ['value' => $row['name'], 'detail' => 'Met at ' . $row['event_title'] . ' · open their details', 'url' => 'person.php?id=' . $row['id']];
         }
         break;
 

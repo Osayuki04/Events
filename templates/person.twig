@@ -1,0 +1,131 @@
+{# One person you met. Same layout as the event page: content on the left, their card and details on the right.
+   Variables: id, person (with event_title, event_date, venue, city), others (other people met at the same event), jobs #}
+{% extends 'base.twig' %}
+{% import 'macros.twig' as ui %}
+
+{% set icon_button = 'grid size-9 place-items-center rounded-xl border border-zinc-200 hover:border-brand hover:text-brand' %}
+
+{% block title %}{{ person ? person.name : 'Person not found' }}{% endblock %}
+
+{% block content %}
+    <a class="mb-3.5 inline-flex items-center gap-1 text-sm font-medium text-brand" href="people.php"><i class="bi bi-caret-left-fill"></i>All people</a>
+
+    {% if not person %}
+        <div class="rounded-2xl border border-zinc-200 px-4 py-14 text-center text-zinc-500">
+            <p class="font-semibold text-zinc-900">Person not found</p>
+            <p class="mb-4 text-[13px]">They may have been removed.</p>
+            <a class="inline-flex rounded-xl bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark" href="people.php">Back to people</a>
+        </div>
+    {% else %}
+
+    <div class="grid gap-6 xl:grid-cols-3">
+
+        {# ============ Left: notes, where you met, others from that event, jobs ============ #}
+        <div class="grid min-w-0 content-start gap-6 xl:col-span-2">
+
+            <section class="rounded-2xl border border-zinc-200">
+                <div class="flex items-center justify-between gap-3 px-5 pb-2 pt-5">
+                    <h2 class="text-lg font-semibold">Notes</h2>
+                    <a class="{{ icon_button }}" href="person_form.php?id={{ id }}" title="Edit notes"><i class="bi bi-pencil-fill"></i></a>
+                </div>
+                <div class="whitespace-pre-line px-5 pb-5 pt-2 leading-relaxed {{ person.notes ? '' : 'text-zinc-500' }}">{{ person.notes|default('No notes yet.') }}</div>
+            </section>
+
+            {# The event you met them at #}
+            <section class="rounded-2xl border border-zinc-200">
+                <div class="px-5 pb-3 pt-5"><h2 class="text-lg font-semibold">Where you met</h2></div>
+                <a class="flex items-center gap-4 border-t border-zinc-200 px-5 py-4 transition-colors hover:bg-zinc-50" href="event.php?id={{ person.event_id }}">
+                    {{ ui.date_block(person.event_date) }}
+                    <div class="min-w-0 flex-1">
+                        <h3 class="font-medium">{{ person.event_title }}</h3>
+                        <p class="text-[13px] text-zinc-500">{{ [person.venue, person.city]|filter(v => v)|join(', ')|default('No venue added') }} · {{ person.event_date|time_ago }}</p>
+                    </div>
+                    <i class="bi bi-chevron-right text-zinc-400"></i>
+                </a>
+            </section>
+
+            {# Everyone else met at the same event #}
+            <section class="rounded-2xl border border-zinc-200">
+                <div class="px-5 pb-3 pt-5">
+                    <h2 class="text-lg font-semibold">Also met there <span class="font-normal text-zinc-500">({{ others|length }})</span></h2>
+                </div>
+                {% for other in others %}
+                    <a class="flex items-center gap-3.5 border-t border-zinc-200 px-5 py-3.5 transition-colors hover:bg-zinc-50" href="person.php?id={{ other.id }}">
+                        {{ ui.avatar(other.id, 10) }}
+                        <div class="min-w-0 flex-1">
+                            <h3 class="font-medium">{{ other.name }}</h3>
+                            <p class="text-[13px] text-zinc-500">{{ [other.job_title, other.company]|filter(v => v)|join(' · ') }}</p>
+                        </div>
+                        {{ ui.follow_badge(other.follow_up) }}
+                    </a>
+                {% else %}
+                    <p class="px-5 pb-5 text-[13px] text-zinc-500">Nobody else from this event is in your diary.</p>
+                {% endfor %}
+            </section>
+
+            {# Jobs saved from the same event #}
+            <section class="rounded-2xl border border-zinc-200">
+                <div class="px-5 pb-3 pt-5">
+                    <h2 class="text-lg font-semibold">Jobs from this event <span class="font-normal text-zinc-500">({{ jobs|length }})</span></h2>
+                </div>
+                {% for job in jobs %}
+                    <a class="flex items-center justify-between gap-3 border-t border-zinc-200 px-5 py-3.5 transition-colors hover:bg-zinc-50" href="job_form.php?id={{ job.id }}">
+                        <div class="min-w-0">
+                            <h3 class="font-medium">{{ job.title }}</h3>
+                            <p class="text-[13px] text-zinc-500">{{ job.company }}</p>
+                        </div>
+                        {{ ui.status(job.status) }}
+                    </a>
+                {% else %}
+                    <p class="px-5 pb-5 text-[13px] text-zinc-500">No jobs saved from this event.</p>
+                {% endfor %}
+            </section>
+        </div>
+
+        {# ============ Right: their card + contact details ============ #}
+        <div class="grid min-w-0 content-start gap-6">
+
+            <section class="rounded-2xl border border-zinc-200">
+                <div class="flex items-center justify-between px-5 pt-5">
+                    <a class="{{ icon_button }}" href="people.php" title="All people"><i class="bi bi-grid-fill"></i></a>
+                    {{ ui.follow_badge(person.follow_up) }}
+                </div>
+                <div class="flex flex-col items-center px-5 pb-6 pt-2 text-center">
+                    <div class="mb-4">{{ ui.avatar(person.id, 26) }}</div>
+                    <h1 class="text-2xl font-semibold">{{ person.name }}</h1>
+                    <p class="mb-4 text-[13px] text-zinc-500">{{ [person.job_title, person.company]|filter(v => v)|join(' · ')|default('No job title added') }}</p>
+                    <div class="mb-5">{{ ui.contact_links(person, true) }}</div>
+                    {# Edit, then the bin button (asks "Are you sure?" first; afterwards you go back to People) #}
+                    <div class="grid w-full grid-cols-[1fr_auto] gap-2">
+                        <a class="rounded-xl bg-brand px-3 py-2.5 text-center text-sm font-medium text-white hover:bg-brand-dark" href="person_form.php?id={{ id }}">Edit</a>
+                        {{ ui.delete_button('person_form.php?id=' ~ id, {action: 'delete', from: 'person'}, 'Remove ' ~ person.name ~ '?',
+                            person.name ~ ' and their contact details will be deleted from your diary.') }}
+                    </div>
+                </div>
+            </section>
+
+            <section class="rounded-2xl border border-zinc-200 pb-2">
+                <div class="flex items-center justify-between gap-3 px-5 pb-2 pt-5">
+                    <h2 class="text-lg font-semibold">Contact details</h2>
+                    <a class="{{ icon_button }}" href="person_form.php?id={{ id }}" title="Edit details"><i class="bi bi-pencil-fill"></i></a>
+                </div>
+                <dl class="divide-y divide-zinc-100 px-5">
+                    <div class="py-3"><dt class="text-xs text-zinc-500">Email</dt>
+                        <dd class="mt-0.5 break-all font-medium">{% if person.email %}<a class="hover:text-brand" href="mailto:{{ person.email }}">{{ person.email }}</a>{% else %}–{% endif %}</dd></div>
+                    <div class="py-3"><dt class="text-xs text-zinc-500">Phone</dt>
+                        <dd class="mt-0.5 font-medium">{% if person.phone %}<a class="hover:text-brand" href="tel:{{ person.phone|replace({' ': ''}) }}">{{ person.phone }}</a>{% else %}–{% endif %}</dd></div>
+                    <div class="py-3"><dt class="text-xs text-zinc-500">LinkedIn</dt>
+                        <dd class="mt-0.5 break-all font-medium">{% if person.linkedin %}<a class="hover:text-brand" href="{{ person.linkedin }}" target="_blank" rel="noopener">{{ person.linkedin|replace({'https://': '', 'http://': ''}) }}</a>{% else %}–{% endif %}</dd></div>
+                    <div class="py-3"><dt class="text-xs text-zinc-500">Website / other social</dt>
+                        <dd class="mt-0.5 break-all font-medium">{% if person.other_social %}<a class="hover:text-brand" href="{{ person.other_social }}" target="_blank" rel="noopener">{{ person.other_social|replace({'https://': '', 'http://': ''}) }}</a>{% else %}–{% endif %}</dd></div>
+                    <div class="py-3"><dt class="text-xs text-zinc-500">Follow-up</dt>
+                        <dd class="mt-0.5 font-medium">{{ person.follow_up ? 'Still to follow up' : 'Already followed up' }}</dd></div>
+                    <div class="py-3"><dt class="text-xs text-zinc-500">Added to your diary</dt>
+                        <dd class="mt-0.5 font-medium">{{ person.created_at|date('j F Y') }}</dd></div>
+                </dl>
+            </section>
+        </div>
+    </div>
+
+    {% endif %}
+{% endblock %}

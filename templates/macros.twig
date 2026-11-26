@@ -241,7 +241,7 @@
           const data = await res.json();
           showCards(data.ids);
           if (count) count.textContent = String(data.label ?? '');
-          // Update the numbers on the stat cards (e.g. after "Follow up" or a delete): whole numbers only
+          // Update the numbers on the stat cards (e.g. after a delete): whole numbers only
           if (data.stats && typeof data.stats === 'object') {
             filter?.querySelectorAll('[data-stat-value]').forEach((number) => {
               const total = Number(data.stats[number.dataset.statValue]);
@@ -317,17 +317,18 @@
 
 {# ---- Bin button on a card in a list: deletes the record after the "Are you sure?" box.
      action = the page that deletes it, fields = hidden fields it needs (e.g. {id: 5} or {action: 'delete'}),
-     title / detail = the text in the "Are you sure?" box, small = the smaller size used on job cards.
+     title / detail = the text in the "Are you sure?" box.
      Sent with Ajax (data-ajax); from=list tells the page to stay on the list and refresh the cards. ---- #}
-{% macro delete_button(action, fields, title, detail, small = false) %}
+{% macro delete_button(action, fields, title, detail) %}
     <form method="post" action="{{ action }}" class="m-0 flex" data-ajax
           data-confirm="{{ title }}" data-confirm-detail="{{ detail }}" data-confirm-action="Delete">
         <input type="hidden" name="token" value="{{ token }}">
+        {# from=list: the page stays on the list after deleting. Comes before the other fields, so a page can send its own "from" #}
+        <input type="hidden" name="from" value="list">
         {% for name, value in fields %}
             <input type="hidden" name="{{ name }}" value="{{ value }}">
         {% endfor %}
-        <input type="hidden" name="from" value="list">
-        <button class="grid {{ small ? 'size-9' : 'w-11' }} place-items-center rounded-xl border border-zinc-200 text-zinc-500 transition-colors hover:border-brand hover:bg-brand hover:text-white"
+        <button class="grid w-11 place-items-center rounded-xl border border-zinc-200 text-zinc-500 transition-colors hover:border-brand hover:bg-brand hover:text-white"
                 type="submit" aria-label="{{ title }}" title="Delete">
             <i class="bi bi-trash3-fill"></i>
         </button>

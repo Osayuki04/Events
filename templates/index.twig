@@ -118,7 +118,7 @@
             <ul class="px-2 pb-2">
                 {% for person in people %}
                     <li>
-                        <a class="group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-zinc-50" href="person_form.php?id={{ person.id }}">
+                        <a class="group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-zinc-50" href="person.php?id={{ person.id }}">
                             {{ ui.avatar(person.id, 10) }}
                             <span class="min-w-0 flex-1">
                                 <span class="block truncate text-sm font-medium group-hover:text-brand">{{ person.name }}</span>

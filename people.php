@@ -4,26 +4,6 @@
 include("db.php");
 $user_id = require_login(); // only for logged-in users (else sent to login.php); every query below only uses their records
 
-// ---- "Follow up" / "Follow up again" button (sent with Ajax from the card) ----
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    check_token();
-    $id = (int) ($_POST['id'] ?? 0);
-    // Only someone met at one of this user's own events can be changed
-    run_query("UPDATE people p JOIN events e ON e.id = p.event_id
-               SET p.follow_up = 1 - p.follow_up WHERE p.id = ? AND e.user_id = ?", [$id, $user_id]);
-
-    // Ajax: tell the page's script the new state (0 or 1) so it can update the card, then refresh the list and numbers
-    if (is_ajax()) {
-        $row = fetch_row("SELECT p.follow_up FROM people p JOIN events e ON e.id = p.event_id
-                          WHERE p.id = ? AND e.user_id = ?", [$id, $user_id]);
-        send_json(['ok' => true, 'refresh' => true, 'follow_up' => (int) ($row['follow_up'] ?? 0),
-                   'message' => ($row['follow_up'] ?? 0) ? 'Moved back to follow up.' : 'Marked as followed up.']);
-    }
-    // Without JavaScript: back to the same list (keeping the search)
-    header("Location: people.php?" . http_build_query(['q' => $_POST['q'] ?? '', 'follow_up' => $_POST['follow_up'] ?? '']));
-    exit;
-}
-
 // ---- Search ----
 $q = clean_text($_GET['q'] ?? '', 80);
 

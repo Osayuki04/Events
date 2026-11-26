@@ -1,7 +1,6 @@
 {# The person cards on people.php. Everyone is here; the people that don't match the search are hidden.
    The live search (search_box macro) gets only the ids of the matching people and shows, hides and orders these cards.
-   Both follow-up states are drawn (data-follow="1" / "0"), the script in base.twig shows the right one after the button is used.
-   Variables: people, visible (id => position of the people that match), q, follow_up #}
+   Variables: people, visible (id => position of the people that match) #}
 {% import 'macros.twig' as ui %}
 
 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" data-cards>
@@ -10,8 +9,7 @@
             <article class="flex flex-col rounded-2xl border border-zinc-200 p-5" data-id="{{ person.id }}" {{ visible[person.id] is defined ? '' : 'hidden' }}>
                 <div class="flex items-center justify-between gap-2">
                     <span class="text-[13px] text-zinc-500">{{ person.event_date|date('j M Y') }}</span>
-                    <span data-follow="1" {{ person.follow_up ? '' : 'hidden' }}>{{ ui.follow_badge(1) }}</span>
-                    <span data-follow="0" {{ person.follow_up ? 'hidden' }}>{{ ui.follow_badge(0) }}</span>
+                    {{ ui.follow_badge(person.follow_up) }}
                 </div>
 
                 <div class="flex flex-1 flex-col items-center pt-2 text-center">
@@ -29,19 +27,9 @@
                     {% endif %}
                 </div>
 
-                {# The two calls to action: solid red first, red outline second.
-                   The first one saves in the background (Ajax): data-ajax on the form, see base.twig #}
+                {# View (their own page, person.php), Edit, and the bin button #}
                 <div class="mt-5 grid grid-cols-[1fr_1fr_auto] gap-2">
-                    <form method="post" action="people.php" class="m-0" data-ajax>
-                        <input type="hidden" name="token" value="{{ token }}">
-                        <input type="hidden" name="id" value="{{ person.id }}">
-                        <input type="hidden" name="q" value="{{ q }}">
-                        <input type="hidden" name="follow_up" value="{{ follow_up }}">
-                        <button class="w-full rounded-xl bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark" type="submit">
-                            <span data-follow="1" {{ person.follow_up ? '' : 'hidden' }}>Follow up</span>
-                            <span data-follow="0" {{ person.follow_up ? 'hidden' }}>Follow up again</span>
-                        </button>
-                    </form>
+                    <a class="rounded-xl bg-brand px-3 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-brand-dark" href="person.php?id={{ person.id }}">View</a>
                     <a class="rounded-xl border border-brand px-3 py-2.5 text-center text-sm font-medium text-brand transition-colors hover:bg-brand hover:text-white" href="person_form.php?id={{ person.id }}">Edit</a>
                     {{ ui.delete_button('person_form.php?id=' ~ person.id, {action: 'delete'}, 'Remove ' ~ person.name ~ '?',
                         person.name ~ ' and their contact details will be deleted from your diary.') }}

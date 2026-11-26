@@ -36,6 +36,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $event) {
         if (($_POST['from'] ?? '') === 'list') {
             deleted_from_list("people.php", $person['name'] . " was removed.");
         }
+        // From their own page (person.php): that page is gone, so go to the People list
+        if (($_POST['from'] ?? '') === 'person') {
+            done("people.php", $person['name'] . " was removed.");
+        }
         done("event.php?id=" . $event_id . "#people", $person['name'] . " was removed.");
     }
 
@@ -78,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $event) {
             mysqli_stmt_bind_param($stmt, "ssssssssii", $form['name'], $form['job_title'], $form['company'], $form['email'],
                 $form['phone'], $form['linkedin'], $form['other_social'], $form['notes'], $form['follow_up'], $id);
             mysqli_stmt_execute($stmt);
-            done("event.php?id=" . $event_id . "#people", $form['name'] . " was updated.");
+            done("person.php?id=" . $id, $form['name'] . " was updated."); // back to their page
         }
         $stmt = mysqli_prepare($mysqli, "INSERT INTO people (event_id, name, job_title, company, email, phone, linkedin, other_social, notes, follow_up)
                                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");

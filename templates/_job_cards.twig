@@ -1,7 +1,6 @@
 {# The job cards on jobs.php. Every job is here; the ones that don't match the search are hidden.
    The live search (search_box macro) gets only the ids of the matching jobs and shows, hides and orders these cards.
-   Every status label is drawn (only the job's own is shown), the script in base.twig shows the right one after the dropdown changes.
-   Variables: jobs, visible (id => position of the jobs that match), statuses, status, q #}
+   Variables: jobs, visible (id => position of the jobs that match) #}
 {% import 'macros.twig' as ui %}
 
 <div class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3" data-cards>
@@ -9,11 +8,7 @@
             <article class="flex flex-col rounded-2xl border border-zinc-200 p-5" data-id="{{ job.id }}" {{ visible[job.id] is defined ? '' : 'hidden' }}>
                 <div class="flex items-start justify-between gap-3">
                     <h2 class="mb-1 text-xl font-semibold">{{ job.title }}</h2>
-                    <span class="mt-1">
-                        {% for s in statuses %}
-                            <span data-status-label {{ s == job.status ? '' : 'hidden' }}>{{ ui.status(s) }}</span>
-                        {% endfor %}
-                    </span>
+                    <span class="mt-1">{{ ui.status(job.status) }}</span>
                 </div>
                 <p class="text-[13px] text-zinc-500">{{ [job.company, job.location]|filter(v => v)|join(' · ') }}</p>
 
@@ -27,27 +22,12 @@
                     <div class="text-[13px] text-zinc-500">{{ job.event_date|date('j M Y') }}</div>
                 </div>
 
-                <div class="flex items-center gap-2 border-t border-zinc-200 pt-3">
-                    {# Changing the dropdown saves straight away, in the background (Ajax, see base.twig) #}
-                    <form method="post" action="jobs.php" class="m-0 mr-auto flex items-center gap-2" data-ajax>
-                        <input type="hidden" name="token" value="{{ token }}">
-                        <input type="hidden" name="id" value="{{ job.id }}">
-                        <input type="hidden" name="filter" value="{{ status }}">
-                        <input type="hidden" name="q" value="{{ q }}">
-                        <select class="rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-[13px] focus:border-brand focus:outline-none" name="status" data-autosubmit aria-label="Change status of {{ job.title }}">
-                            {% for s in statuses %}
-                                <option {{ job.status == s ? 'selected' }}>{{ s }}</option>
-                            {% endfor %}
-                        </select>
-                        <button class="rounded-xl border border-zinc-200 px-3 py-1.5 text-[13px] font-medium" type="submit" data-autosubmit-button>Save</button>
-                    </form>
-                    {# The two calls to action: solid red first, red outline second #}
-                    {% if job.url %}
-                        <a class="rounded-xl bg-brand px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-brand-dark" href="{{ job.url }}" target="_blank" rel="noopener">View advert</a>
-                    {% endif %}
-                    <a class="rounded-xl border border-brand px-3.5 py-2 text-[13px] font-medium text-brand transition-colors hover:bg-brand hover:text-white" href="job_form.php?id={{ job.id }}">Edit</a>
+                {# View (the event the job came from, at "Jobs saved"), Edit (also where the status is changed), and the bin button #}
+                <div class="grid grid-cols-[1fr_1fr_auto] gap-2 border-t border-zinc-200 pt-4">
+                    <a class="rounded-xl bg-brand px-3 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-brand-dark" href="event.php?id={{ job.event_id }}#jobs">View</a>
+                    <a class="rounded-xl border border-brand px-3 py-2.5 text-center text-sm font-medium text-brand transition-colors hover:bg-brand hover:text-white" href="job_form.php?id={{ job.id }}">Edit</a>
                     {{ ui.delete_button('job_form.php?id=' ~ job.id, {action: 'delete'}, 'Remove this job?',
-                        job.title ~ ' at ' ~ job.company ~ ' will be deleted from your diary.', true) }}
+                        job.title ~ ' at ' ~ job.company ~ ' will be deleted from your diary.') }}
                 </div>
             </article>
         {% endfor %}

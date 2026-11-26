@@ -6,33 +6,6 @@ $user_id = require_login(); // only for logged-in users (else sent to login.php)
 
 $statuses = ['Saved', 'Applied', 'Interview', 'Offer', 'Rejected'];
 
-// ---- Quick status change from a card (sent with Ajax when the dropdown changes) ----
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    check_token();
-    $id = (int) ($_POST['id'] ?? 0);
-    $new_status = clean_text($_POST['status'] ?? '', 20);
-
-    if (in_array($new_status, $statuses)) {
-        // Only a job from one of this user's own events can be changed
-        $changed = run_query("UPDATE jobs j JOIN events e ON e.id = j.event_id
-                              SET j.status = ? WHERE j.id = ? AND e.user_id = ?", [$new_status, $id, $user_id]);
-        $message = $changed > 0 || fetch_row("SELECT j.id FROM jobs j JOIN events e ON e.id = j.event_id
-                                              WHERE j.id = ? AND e.user_id = ?", [$id, $user_id])
-            ? "Status changed to $new_status." : "That job no longer exists.";
-    } else {
-        $message = "Choose a status from the list.";
-    }
-
-    // Ajax: tell the page's script to refresh the cards and the numbers
-    if (is_ajax()) {
-        send_json(['ok' => true, 'refresh' => true, 'message' => $message]);
-    }
-    // Without JavaScript: back to the same list (keeping the filters)
-    $_SESSION['message'] = $message;
-    header("Location: jobs.php?" . http_build_query(['status' => $_POST['filter'] ?? '', 'q' => $_POST['q'] ?? '']));
-    exit;
-}
-
 // ---- Filters ----
 $q = clean_text($_GET['q'] ?? '', 80);
 $status = clean_text($_GET['status'] ?? '', 20);
