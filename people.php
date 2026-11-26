@@ -4,7 +4,7 @@
 include("db.php");
 $user_id = require_login(); // only for logged-in users (else sent to login.php); every query below only uses their records
 
-// ---- "Mark as followed up" / "Follow up again" button (sent with Ajax from the card) ----
+// ---- "Follow up" / "Follow up again" button (sent with Ajax from the card) ----
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     check_token();
     $id = (int) ($_POST['id'] ?? 0);

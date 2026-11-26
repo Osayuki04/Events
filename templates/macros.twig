@@ -241,7 +241,7 @@
           const data = await res.json();
           showCards(data.ids);
           if (count) count.textContent = String(data.label ?? '');
-          // Update the numbers on the stat cards (e.g. after "Mark as followed up" or a delete): whole numbers only
+          // Update the numbers on the stat cards (e.g. after "Follow up" or a delete): whole numbers only
           if (data.stats && typeof data.stats === 'object') {
             filter?.querySelectorAll('[data-stat-value]').forEach((number) => {
               const total = Number(data.stats[number.dataset.statValue]);

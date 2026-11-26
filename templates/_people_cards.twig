@@ -38,7 +38,7 @@
                         <input type="hidden" name="q" value="{{ q }}">
                         <input type="hidden" name="follow_up" value="{{ follow_up }}">
                         <button class="w-full rounded-xl bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark" type="submit">
-                            <span data-follow="1" {{ person.follow_up ? '' : 'hidden' }}>Mark as followed up</span>
+                            <span data-follow="1" {{ person.follow_up ? '' : 'hidden' }}>Follow up</span>
                             <span data-follow="0" {{ person.follow_up ? 'hidden' }}>Follow up again</span>
                         </button>
                     </form>

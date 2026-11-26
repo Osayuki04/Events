@@ -25,7 +25,7 @@ Server-side logic and client-side markup are kept apart:
 | `event.php` + `templates/event.twig` | One event: summary, people met, jobs saved |
 | `event_form.php` + `templates/event_form.twig` | Add / edit an event |
 | `event_delete.php` | Deletes an event (and its people and jobs) |
-| `people.php` + `templates/people.twig` | Everyone you've met, with "Mark as followed up" |
+| `people.php` + `templates/people.twig` | Everyone you've met, with "Follow up" |
 | `person_form.php` + `templates/person_form.twig` | Add / edit / remove someone you met |
 | `jobs.php` + `templates/jobs.twig` | All saved jobs, change status from a card |
 | `job_form.php` + `templates/job_form.twig` | Add / edit / remove a job |
@@ -49,7 +49,7 @@ Every search and every form uses Ajax. Requests send the header `X-Requested-Wit
 | Person form | Warns if the person is **already in your diary** (opens their details); job title and company suggest past values |
 | Job form | Job title, company and location suggest past values |
 | All add / edit forms | Sent in the background: errors appear under each field without reloading; on success you go to the saved item |
-| "Mark as followed up", job status dropdown | Saved in the background; the cards and the numbers on the stat cards update |
+| "Follow up", job status dropdown | Saved in the background; the cards and the numbers on the stat cards update |
 | Delete / remove buttons | After the "Are you sure?" box, sent in the background |
 
 Without JavaScript every form and search still works as a normal page.
@@ -74,7 +74,7 @@ Anything done on XAMPP changes the live data on mi-linux.
 |---|---|
 | **Create** | `event_form.php`, `person_form.php`, `job_form.php` |
 | **Read** | `index.php`, `events.php`, `event.php`, `people.php`, `jobs.php` |
-| **Update** | Edit forms above, "Mark as followed up" on `people.php`, status dropdown on `jobs.php` |
+| **Update** | Edit forms above, "Follow up" on `people.php`, status dropdown on `jobs.php` |
 | **Delete** | Bin button on every event, person and job card; `event_delete.php`; Remove button on `person_form.php` and `job_form.php` |
 | **(1) Input filtering** | Every value goes through `clean_text()` in `db.php` (removes HTML tags and control characters, refuses lists, limits length), then `(int)`, `in_array` against allowed values, `filter_var` for email and links, regex for dates, phone numbers and usernames. Passwords are only checked to be text of a sensible length (never changed) |
 | **(2) Output escaping** | Twig `autoescape` escapes every `{{ value }}` with `htmlspecialchars` when shown; the `url_encode` filter for values put in links; the JavaScript inserts text with `textContent` (never `innerHTML`); the live search gets only ids (whole numbers) and shows or hides cards Twig already drew, so no HTML from the server is ever parsed (no DOM XSS); stat cards pick a dropdown option by position instead of copying text; and `goTo()` rebuilds every address from a fixed list of our pages plus whole numbers (no open redirect) |
