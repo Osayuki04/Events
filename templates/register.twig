@@ -1,4 +1,4 @@
-{# Create the account (only shown while the site has no accounts). Variables: username, errors #}
+{# Create an account (anyone can sign up; every account has its own private diary). Variables: username, errors #}
 {% extends 'base.twig' %}
 {% import 'macros.twig' as ui %}
 
@@ -9,7 +9,7 @@
         <div class="mb-8 text-center">
             <span class="mx-auto mb-4 grid size-14 place-items-center rounded-2xl bg-brand text-2xl text-white"><i class="bi bi-person-fill-lock"></i></span>
             <h1 class="text-3xl font-semibold tracking-tight">Create your account</h1>
-            <p class="mt-2 text-zinc-500">Yukylo is new here. Choose the username and password that will keep your diary private.</p>
+            <p class="mt-2 text-zinc-500">Your diary is private: only you can see the events, people and jobs you save.</p>
         </div>
 
         <form method="post" action="register.php" class="grid gap-4 rounded-2xl border border-zinc-200 p-6" novalidate data-ajax>
@@ -24,5 +24,6 @@
 
             <button class="mt-2 rounded-xl bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark" type="submit">Create account</button>
         </form>
+        <p class="mt-5 text-center text-sm text-zinc-500">Already have an account? <a class="font-medium text-brand hover:underline" href="login.php">Log in</a></p>
     </div>
 {% endblock %}
