@@ -186,12 +186,18 @@ $test_user = 'sectest_user';
 $test_password = 'SecTest-Pass-' . random_int(1000, 9999);
 make_user($test_user, $test_password);
 
+// Every user has their own diary, so the test user gets one event of its own to work with
+$test_user_id = (int) mysqli_fetch_row(mysqli_query($mysqli, "SELECT id FROM users WHERE username = 'sectest_user'"))[0];
+mysqli_query($mysqli, "INSERT INTO events (user_id, title, category_id, event_date, summary)
+                       VALUES ($test_user_id, 'SECTEST home event', 1, '2026-01-01', 'The test user''s own event')");
+$home = mysqli_insert_id($mysqli);
+
 // ================================================================== 0. Login
 section('0. Login: sessions protect the pages, captcha, encrypted passwords');
 
 // --- Not logged in: every page sends you to the login page
-$protected = ['index.php', 'events.php', 'event.php?id=1', 'event_form.php', 'people.php', 'person_form.php?event_id=1',
-              'jobs.php', 'job_form.php?event_id=1', 'suggest.php?field=events&q=a'];
+$protected = ['index.php', 'events.php', "event.php?id=$home", 'event_form.php', 'people.php', "person_form.php?event_id=$home",
+              'jobs.php', "job_form.php?event_id=$home", 'suggest.php?field=events&q=a'];
 foreach ($protected as $path) {
     [$status, $h] = request('GET', $path, [], false);
     check("$path needs a login (sent to login.php)", $status === 302 && str_starts_with($h['location'][0] ?? '', 'login.php'), "status $status");
@@ -204,7 +210,7 @@ foreach (['event_delete.php', 'people.php', 'jobs.php'] as $path) {
     $status = request('POST', $path, ['id' => 1], false)[0];
     check("POST to $path without a login is refused", $status === 302, "status $status");
 }
-check('register.php is closed once an account exists', request('GET', 'register.php', [], false)[0] === 302);
+check('register.php is open for new users to sign up', request('GET', 'register.php', [], false)[0] === 200);
 
 // --- Captcha
 [$status, $h, $svg] = request('GET', 'captcha.php', [], false);
@@ -269,7 +275,7 @@ check('Form token found on the event form', $token !== '');
 // ================================================================== 1. Headers
 section('1. Security headers');
 
-foreach (['index.php', 'events.php', 'people.php', 'jobs.php', 'event_form.php', 'event.php?id=1'] as $path) {
+foreach (['index.php', 'events.php', 'people.php', 'jobs.php', 'event_form.php', "event.php?id=$home"] as $path) {
     [$status, $h] = request('GET', $path, [], false);
     $missing = [];
     foreach (['content-security-policy', 'x-content-type-options', 'x-frame-options', 'referrer-policy', 'permissions-policy'] as $name) {
@@ -345,15 +351,15 @@ $wrong = post('event_form.php', ['token' => str_repeat('a', 64), 'title' => 'SEC
 check('Event form refuses a wrong token', ($wrong['ok'] ?? null) === false);
 $list_token = post('event_form.php', ['token' => [$token], 'title' => 'SECTEST list token', 'category_id' => 1, 'event_date' => '2026-01-01', 'summary' => 'Should never be saved']);
 check('Event form refuses a token sent as a list', ($list_token['ok'] ?? null) === false);
-$saved = (int) mysqli_fetch_row(mysqli_query($mysqli, "SELECT COUNT(*) FROM events WHERE title LIKE 'SECTEST%'"))[0];
+$saved = (int) mysqli_fetch_row(mysqli_query($mysqli, "SELECT COUNT(*) FROM events WHERE title LIKE 'SECTEST%' AND id != $home"))[0];
 check('Nothing was saved without a valid token', $saved === 0, "$saved saved");
 
-foreach (['person_form.php?event_id=1', 'job_form.php?event_id=1', 'people.php', 'jobs.php', 'event_delete.php'] as $path) {
-    $r = post($path, ['id' => 1, 'name' => 'SECTEST', 'title' => 'SECTEST', 'company' => 'SECTEST', 'status' => 'Offer']);
+foreach (["person_form.php?event_id=$home", "job_form.php?event_id=$home", 'people.php', 'jobs.php', 'event_delete.php'] as $path) {
+    $r = post($path, ['id' => $home, 'name' => 'SECTEST', 'title' => 'SECTEST', 'company' => 'SECTEST', 'status' => 'Offer']);
     check("$path refuses a missing token", ($r['ok'] ?? null) === false);
 }
-check('Event 1 still exists after the delete attempt without a token',
-    (int) mysqli_fetch_row(mysqli_query($mysqli, "SELECT COUNT(*) FROM events WHERE id = 1"))[0] === 1);
+check('The event still exists after the delete attempt without a token',
+    (int) mysqli_fetch_row(mysqli_query($mysqli, "SELECT COUNT(*) FROM events WHERE id = $home"))[0] === 1);
 
 // ================================================================== 4. XSS in forms
 section('4. HTML / script injection in every form field');
@@ -534,6 +540,63 @@ check('Event form refuses a type that does not exist', isset($r['errors']['categ
 $r = post("person_form.php?event_id=$event_id", ['token' => $token, 'action' => 'save', 'name' => 'SECTEST', 'email' => 'not-an-email']);
 check('Person form refuses a bad email address', isset($r['errors']['email']));
 
+// ================================================================== 7b. Each user only sees their own diary
+section('7b. Each user only sees and changes their own records');
+
+// A second user with an event, a person and a job. The test user (logged in) tries to reach them.
+make_user('sectest_other', 'Other-Pass-123');
+$other_id = (int) mysqli_fetch_row(mysqli_query($mysqli, "SELECT id FROM users WHERE username = 'sectest_other'"))[0];
+mysqli_query($mysqli, "INSERT INTO events (user_id, title, category_id, event_date, venue, city, summary)
+                       VALUES ($other_id, 'SECTEST Private Party Zebra', 1, '2026-02-02', 'Zebra Hall', 'Zebratown', 'Another user''s private event')");
+$other_event = mysqli_insert_id($mysqli);
+mysqli_query($mysqli, "INSERT INTO people (event_id, name, company, notes, follow_up) VALUES ($other_event, 'SECTEST Zebra Person', 'Zebra Corp', '', 1)");
+$other_person = mysqli_insert_id($mysqli);
+mysqli_query($mysqli, "INSERT INTO jobs (event_id, title, company, status, notes) VALUES ($other_event, 'SECTEST Zebra Job', 'Zebra Corp', 'Saved', '')");
+$other_job = mysqli_insert_id($mysqli);
+
+// Opening their records by changing the id in the address: "not found" (404), and nothing of theirs is shown
+foreach (["event.php?id=$other_event", "event_form.php?id=$other_event", "person_form.php?id=$other_person",
+          "job_form.php?id=$other_job", "person_form.php?event_id=$other_event", "job_form.php?event_id=$other_event"] as $path) {
+    [$status, , $body] = request('GET', $path, [], false);
+    check("Another user's record: $path is not found", $status === 404 && !str_contains($body, 'Zebra'), "status $status");
+}
+
+// Their records never appear in my lists, searches, stat cards, dashboard or suggestions
+// (the search pages show the word "Zebra" in the search box, so look for the records' own text)
+$their_text = ['Private Party Zebra', 'Zebra Person', 'Zebra Job', 'Zebra Corp', 'Zebratown', 'Zebra Hall'];
+foreach (['index.php', 'events.php', 'people.php', 'jobs.php', 'events.php?q=Zebra', 'people.php?q=Zebra', 'jobs.php?q=Zebra'] as $path) {
+    $body = get($path);
+    $shown = array_values(array_filter($their_text, fn($t) => str_contains($body, $t)));
+    check("Another user's records are not on $path", !$shown, implode(', ', $shown));
+}
+foreach (['events.php', 'people.php', 'jobs.php'] as $page) {
+    $ids = json_decode(request('GET', "$page?ajax=1")[2], true)['ids'] ?? [];
+    $theirs = ['events.php' => $other_event, 'people.php' => $other_person, 'jobs.php' => $other_job][$page];
+    check("Live search on $page never returns another user's id", !in_array($theirs, $ids, true));
+}
+foreach (['events', 'people', 'jobs', 'event_title', 'venue', 'city', 'person_name', 'company', 'job_title'] as $field) {
+    check("Suggestions ($field) never show another user's data", !str_contains(request('GET', "suggest.php?field=$field&q=Zebra")[2], 'Zebra'));
+}
+
+// Changing or deleting their records with forged requests (with my valid token) does nothing
+post("event_form.php?id=$other_event", ['token' => $token, 'title' => 'SECTEST hacked', 'category_id' => 1, 'event_date' => '2026-01-01', 'summary' => 'Changed by another user']);
+post('event_delete.php', ['token' => $token, 'id' => $other_event]);
+post("person_form.php?id=$other_person", ['token' => $token, 'action' => 'delete']);
+post("person_form.php?id=$other_person", ['token' => $token, 'action' => 'save', 'name' => 'SECTEST hacked']);
+post("person_form.php?event_id=$other_event", ['token' => $token, 'action' => 'save', 'name' => 'SECTEST added to their event']);
+post("job_form.php?id=$other_job", ['token' => $token, 'action' => 'delete']);
+post("job_form.php?event_id=$other_event", ['token' => $token, 'action' => 'save', 'title' => 'SECTEST added', 'company' => 'x', 'status' => 'Saved']);
+post('people.php', ['token' => $token, 'id' => $other_person]);
+post('jobs.php', ['token' => $token, 'id' => $other_job, 'status' => 'Offer']);
+$event_now = mysqli_fetch_assoc(mysqli_query($mysqli, "SELECT title FROM events WHERE id = $other_event"));
+$person_now = mysqli_fetch_assoc(mysqli_query($mysqli, "SELECT name, follow_up FROM people WHERE id = $other_person"));
+$job_now = mysqli_fetch_assoc(mysqli_query($mysqli, "SELECT status FROM jobs WHERE id = $other_job"));
+$added = (int) mysqli_fetch_row(mysqli_query($mysqli, "SELECT (SELECT COUNT(*) FROM people WHERE event_id = $other_event) + (SELECT COUNT(*) FROM jobs WHERE event_id = $other_event)"))[0];
+check("I can't edit or delete another user's event", ($event_now['title'] ?? '') === 'SECTEST Private Party Zebra', json_encode($event_now));
+check("I can't edit, delete or mark another user's person", ($person_now['name'] ?? '') === 'SECTEST Zebra Person' && (int) $person_now['follow_up'] === 1, json_encode($person_now));
+check("I can't delete or change the status of another user's job", ($job_now['status'] ?? '') === 'Saved', json_encode($job_now));
+check("I can't add people or jobs to another user's event", $added === 2, "$added records on their event");
+
 // ================================================================== 8. Logging out + locking after wrong passwords
 section('8. Logging out, and locking the account after wrong passwords');
 
@@ -557,6 +620,21 @@ $r = log_in_as('sectest_lock', 'Lock-Test-123');
 check('After 5 wrong passwords the account is locked (even the right password fails)', ($r['ok'] ?? null) === false && str_contains($r['errors']['password'] ?? '', 'Too many'), json_encode($r));
 $locked = mysqli_fetch_assoc(mysqli_query($mysqli, "SELECT locked_until FROM users WHERE username = 'sectest_lock'"));
 check('The lock is saved in the database', !empty($locked['locked_until']));
+
+// Signing up (logged out): a username can only be taken once, and a new account starts with an empty diary
+$r = post('register.php', ['token' => token_from('register.php'), 'username' => 'sectest_other', 'password' => 'Another-Pass-1',
+                           'confirm' => 'Another-Pass-1', 'captcha' => solve_captcha()]);
+check('Sign up refuses a username that is already taken', isset($r['errors']['username']), json_encode($r));
+$r = post('register.php', ['token' => token_from('register.php'), 'username' => 'sectest_new', 'password' => 'New-Pass-123',
+                           'confirm' => 'New-Pass-123', 'captcha' => '']);
+check('Sign up needs the captcha', isset($r['errors']['captcha']));
+$r = post('register.php', ['token' => token_from('register.php'), 'username' => 'sectest_new', 'password' => 'New-Pass-123',
+                           'confirm' => 'New-Pass-123', 'captcha' => solve_captcha()]);
+check('A new user can sign up', ($r['ok'] ?? null) === true, json_encode($r));
+$new_hash = mysqli_fetch_row(mysqli_query($mysqli, "SELECT password_hash FROM users WHERE username = 'sectest_new'"))[0] ?? '';
+check("The new user's password is stored as a bcrypt hash", str_starts_with($new_hash, '$2y$') && password_verify('New-Pass-123', $new_hash));
+$ids = json_decode(request('GET', 'events.php?ajax=1')[2], true)['ids'] ?? null;
+check('A new account starts with an empty diary (sees nobody else\'s events)', $ids === [], json_encode($ids));
 
 // ================================================================== 9. The database is unharmed
 section('9. The database is unharmed');
