@@ -3,16 +3,14 @@
 // Logic only - the HTML is in templates/event_form.twig
 // The form is sent with Ajax: errors come back as JSON and show under each field (see app.js).
 include("db.php");
-require_login(); // only for logged-in users: otherwise sent to login.php
+$user_id = require_login(); // only for logged-in users (else sent to login.php); every query below only uses their records
 
 $id = (int) ($_GET['id'] ?? 0);
 $event = null;
 
 if ($id > 0) {
-    $stmt = mysqli_prepare($mysqli, "SELECT * FROM events WHERE id = ?");
-    mysqli_stmt_bind_param($stmt, "i", $id);
-    mysqli_stmt_execute($stmt);
-    $event = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    // Only this user's own event: someone else's id is treated as "not found"
+    $event = fetch_row("SELECT * FROM events WHERE id = ? AND user_id = ?", [$id, $user_id]);
 }
 
 $categories = mysqli_fetch_all(mysqli_query($mysqli, "SELECT * FROM categories ORDER BY name"), MYSQLI_ASSOC);
@@ -58,16 +56,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($id == 0 || $event)) {
 
     if (count($errors) == 0) {
         if ($event) {
+            // "AND user_id = ?" as well: even a forged request can only change the user's own event
             $stmt = mysqli_prepare($mysqli, "UPDATE events SET title = ?, category_id = ?, event_date = ?, venue = ?, city = ?,
-                                             seat = ?, rating = ?, summary = ? WHERE id = ?");
-            mysqli_stmt_bind_param($stmt, "sissssisi", $form['title'], $form['category_id'], $form['event_date'],
-                $form['venue'], $form['city'], $form['seat'], $form['rating'], $form['summary'], $id);
+                                             seat = ?, rating = ?, summary = ? WHERE id = ? AND user_id = ?");
+            mysqli_stmt_bind_param($stmt, "sissssisii", $form['title'], $form['category_id'], $form['event_date'],
+                $form['venue'], $form['city'], $form['seat'], $form['rating'], $form['summary'], $id, $user_id);
             mysqli_stmt_execute($stmt);
             done("event.php?id=" . $id, "Event saved.");
         }
-        $stmt = mysqli_prepare($mysqli, "INSERT INTO events (title, category_id, event_date, venue, city, seat, rating, summary)
-                                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        mysqli_stmt_bind_param($stmt, "sissssis", $form['title'], $form['category_id'], $form['event_date'],
+        // A new event belongs to the logged-in user
+        $stmt = mysqli_prepare($mysqli, "INSERT INTO events (user_id, title, category_id, event_date, venue, city, seat, rating, summary)
+                                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        mysqli_stmt_bind_param($stmt, "isissssis", $user_id, $form['title'], $form['category_id'], $form['event_date'],
             $form['venue'], $form['city'], $form['seat'], $form['rating'], $form['summary']);
         mysqli_stmt_execute($stmt);
         done("event.php?id=" . mysqli_insert_id($mysqli), "Event added. Now add the people you met and any jobs you saved.");

@@ -1,17 +1,15 @@
 <?php
 // One event: summary, people met, jobs saved. Logic only - the HTML is in templates/event.twig
 include("db.php");
-require_login(); // only for logged-in users: otherwise sent to login.php
+$user_id = require_login(); // only for logged-in users (else sent to login.php); every query below only uses their records
 
 $id = (int) ($_GET['id'] ?? 0);
 
-// The event
-$stmt = mysqli_prepare($mysqli, "SELECT e.*, c.name AS category
-                                 FROM events e JOIN categories c ON c.id = e.category_id
-                                 WHERE e.id = ?");
-mysqli_stmt_bind_param($stmt, "i", $id);
-mysqli_stmt_execute($stmt);
-$event = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+// The event - only if it belongs to this user. Changing the id in the address to someone else's
+// event finds nothing, so it shows "Event not found" (404) instead of their diary.
+$event = fetch_row("SELECT e.*, c.name AS category
+                    FROM events e JOIN categories c ON c.id = e.category_id
+                    WHERE e.id = ? AND e.user_id = ?", [$id, $user_id]);
 
 $people = [];
 $jobs = [];

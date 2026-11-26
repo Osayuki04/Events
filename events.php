@@ -2,11 +2,11 @@
 // Events list with multi-criteria search. Logic only - the HTML is in templates/events.twig
 // events.php?ajax=1&...  returns the ids of the matching events as JSON (live search, see app.js)
 include("db.php");
-require_login(); // only for logged-in users: otherwise sent to login.php
+$user_id = require_login(); // only for logged-in users (else sent to login.php); every query below only uses their records
 
-// Lists for the dropdowns
+// Lists for the dropdowns (types are shared; cities come from this user's own events)
 $categories = mysqli_fetch_all(mysqli_query($mysqli, "SELECT * FROM categories ORDER BY name"), MYSQLI_ASSOC);
-$cities = mysqli_fetch_all(mysqli_query($mysqli, "SELECT DISTINCT city FROM events WHERE city != '' ORDER BY city"), MYSQLI_ASSOC);
+$cities = fetch_rows("SELECT DISTINCT city FROM events WHERE user_id = ? AND city != '' ORDER BY city", [$user_id]);
 
 // ---- Read the search form (every value is checked before it is used) ----
 $q = clean_text($_GET['q'] ?? '', 80);
@@ -41,9 +41,9 @@ if (!in_array($sort, ['newest', 'oldest', 'rating', 'title'])) {
     $sort = 'newest';
 }
 
-// ---- Build the search: every filter that was filled in is added with AND ----
-$where = "1 = 1";
-$params = [];
+// ---- Build the search: only this user's events, then every filter that was filled in is added with AND ----
+$where = "e.user_id = ?";
+$params = [$user_id];
 
 if ($q != '') {
     $where .= " AND (e.title LIKE ? OR e.summary LIKE ? OR e.venue LIKE ? OR e.city LIKE ?)";
@@ -86,22 +86,25 @@ $order = "ORDER BY " . $orders[$sort];
 $ids = matching_ids($mysqli, "SELECT e.id FROM events e JOIN categories c ON c.id = e.category_id WHERE $where $order", $params);
 $label = count($ids) . (count($ids) == 1 ? ' event' : ' events');
 
-// Ajax (live search): only the matching ids (numbers, in order) and the label
+// ---- Stat cards: "All events" + one per type you've been to (up to 5) ----
+$all_events = (int) fetch_row("SELECT COUNT(*) AS total FROM events WHERE user_id = ?", [$user_id])['total'];
+$type_stats = fetch_rows("SELECT c.id, c.name, COUNT(e.id) AS total, MAX(e.event_date) AS latest
+                          FROM categories c JOIN events e ON e.category_id = c.id
+                          WHERE e.user_id = ?
+                          GROUP BY c.id ORDER BY total DESC, c.name LIMIT 5", [$user_id]);
+
+// Ajax (live search): only the matching ids (numbers, in order), the label and the numbers for the stat cards
+// ('' = all events, then category id => number of events), so they update after a delete
 if (is_ajax()) {
-    send_json(['label' => $label, 'ids' => $ids]);
+    send_json(['label' => $label, 'ids' => $ids, 'stats' => ['' => $all_events] + array_map('intval', array_column($type_stats, 'total', 'id'))]);
 }
 
 // The page has every event (in the chosen order); the ones that don't match are hidden (app.js shows them again)
-$events = mysqli_fetch_all(mysqli_query($mysqli, "SELECT e.*, c.name AS category,
-                                                         (SELECT COUNT(*) FROM people p WHERE p.event_id = e.id) AS people_count,
-                                                         (SELECT COUNT(*) FROM jobs j WHERE j.event_id = e.id) AS job_count
-                                                  FROM events e JOIN categories c ON c.id = e.category_id $order"), MYSQLI_ASSOC);
-
-// ---- Stat cards: "All events" + one per type you've been to (up to 5) ----
-$all_events = (int) mysqli_fetch_assoc(mysqli_query($mysqli, "SELECT COUNT(*) AS total FROM events"))['total'];
-$type_stats = mysqli_fetch_all(mysqli_query($mysqli, "SELECT c.id, c.name, COUNT(e.id) AS total, MAX(e.event_date) AS latest
-                                                      FROM categories c JOIN events e ON e.category_id = c.id
-                                                      GROUP BY c.id ORDER BY total DESC, c.name LIMIT 5"), MYSQLI_ASSOC);
+$events = fetch_rows("SELECT e.*, c.name AS category,
+                             (SELECT COUNT(*) FROM people p WHERE p.event_id = e.id) AS people_count,
+                             (SELECT COUNT(*) FROM jobs j WHERE j.event_id = e.id) AS job_count
+                      FROM events e JOIN categories c ON c.id = e.category_id
+                      WHERE e.user_id = ? $order", [$user_id]);
 
 render('events.twig', [
     'page'       => 'events',
