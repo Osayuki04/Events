@@ -3,25 +3,21 @@
 // Logic only - the HTML is in templates/person_form.twig
 // The form is sent with Ajax: errors come back as JSON and show under each field (see app.js).
 include("db.php");
-require_login(); // only for logged-in users: otherwise sent to login.php
+$user_id = require_login(); // only for logged-in users (else sent to login.php); every query below only uses their records
 
 $id = (int) ($_GET['id'] ?? 0);
 $event_id = (int) ($_GET['event_id'] ?? 0);
 $person = null;
 
 if ($id > 0) {
-    $stmt = mysqli_prepare($mysqli, "SELECT * FROM people WHERE id = ?");
-    mysqli_stmt_bind_param($stmt, "i", $id);
-    mysqli_stmt_execute($stmt);
-    $person = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    // Only someone met at one of this user's own events (another user's person id = "not found")
+    $person = fetch_row("SELECT p.* FROM people p JOIN events e ON e.id = p.event_id
+                         WHERE p.id = ? AND e.user_id = ?", [$id, $user_id]);
     $event_id = $person ? (int) $person['event_id'] : 0;
 }
 
-// The event they were met at
-$stmt = mysqli_prepare($mysqli, "SELECT id, title, event_date FROM events WHERE id = ?");
-mysqli_stmt_bind_param($stmt, "i", $event_id);
-mysqli_stmt_execute($stmt);
-$event = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+// The event they were met at - must be one of this user's events, so nobody can add people to someone else's diary
+$event = fetch_row("SELECT id, title, event_date FROM events WHERE id = ? AND user_id = ?", [$event_id, $user_id]);
 
 $form = $person ?? [
     'name' => '', 'job_title' => '', 'company' => '', 'email' => '', 'phone' => '',
@@ -34,9 +30,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $event) {
 
     // ---- Remove ----
     if (($_POST['action'] ?? '') == 'delete' && $person) {
-        $stmt = mysqli_prepare($mysqli, "DELETE FROM people WHERE id = ?");
-        mysqli_stmt_bind_param($stmt, "i", $id);
-        mysqli_stmt_execute($stmt);
+        // $person was only found if it is this user's, and the event check is repeated in the DELETE itself
+        run_query("DELETE p FROM people p JOIN events e ON e.id = p.event_id WHERE p.id = ? AND e.user_id = ?", [$id, $user_id]);
+        // From the bin button on a People card: stay on the list
+        if (($_POST['from'] ?? '') === 'list') {
+            deleted_from_list("people.php", $person['name'] . " was removed.");
+        }
         done("event.php?id=" . $event_id . "#people", $person['name'] . " was removed.");
     }
 

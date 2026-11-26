@@ -3,25 +3,21 @@
 // Logic only - the HTML is in templates/job_form.twig
 // The form is sent with Ajax: errors come back as JSON and show under each field (see app.js).
 include("db.php");
-require_login(); // only for logged-in users: otherwise sent to login.php
+$user_id = require_login(); // only for logged-in users (else sent to login.php); every query below only uses their records
 
 $id = (int) ($_GET['id'] ?? 0);
 $event_id = (int) ($_GET['event_id'] ?? 0);
 $job = null;
 
 if ($id > 0) {
-    $stmt = mysqli_prepare($mysqli, "SELECT * FROM jobs WHERE id = ?");
-    mysqli_stmt_bind_param($stmt, "i", $id);
-    mysqli_stmt_execute($stmt);
-    $job = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    // Only a job from one of this user's own events (another user's job id = "not found")
+    $job = fetch_row("SELECT j.* FROM jobs j JOIN events e ON e.id = j.event_id
+                      WHERE j.id = ? AND e.user_id = ?", [$id, $user_id]);
     $event_id = $job ? (int) $job['event_id'] : 0;
 }
 
-// The event the job came from
-$stmt = mysqli_prepare($mysqli, "SELECT id, title, event_date FROM events WHERE id = ?");
-mysqli_stmt_bind_param($stmt, "i", $event_id);
-mysqli_stmt_execute($stmt);
-$event = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+// The event the job came from - must be one of this user's events
+$event = fetch_row("SELECT id, title, event_date FROM events WHERE id = ? AND user_id = ?", [$event_id, $user_id]);
 
 $statuses = ['Saved', 'Applied', 'Interview', 'Offer', 'Rejected'];
 
@@ -33,9 +29,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $event) {
 
     // ---- Remove ----
     if (($_POST['action'] ?? '') == 'delete' && $job) {
-        $stmt = mysqli_prepare($mysqli, "DELETE FROM jobs WHERE id = ?");
-        mysqli_stmt_bind_param($stmt, "i", $id);
-        mysqli_stmt_execute($stmt);
+        // $job was only found if it is this user's, and the event check is repeated in the DELETE itself
+        run_query("DELETE j FROM jobs j JOIN events e ON e.id = j.event_id WHERE j.id = ? AND e.user_id = ?", [$id, $user_id]);
+        // From the bin button on a Jobs card: stay on the list
+        if (($_POST['from'] ?? '') === 'list') {
+            deleted_from_list("jobs.php", "The job was removed.");
+        }
         done("event.php?id=" . $event_id . "#jobs", "The job was removed.");
     }
 
